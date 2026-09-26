@@ -1,62 +1,183 @@
 import React from 'react';
 import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
+import { ShellProvider, useShell } from '../context/ShellContext';
+import { GlobalAppShell } from '../components/layout';
+import {
+  Card,
+  SectionHeader,
+  PrimaryButton,
+  SecondaryButton,
+  ResolutionButton,
+  DestructiveButton,
+  StatusBadge,
+  CareGapBadge,
+  ReferralStatusBadge,
+  VerifiedBadge,
+  OfflineStatus,
+  PatientIdentity,
+} from '../components/common';
 
 /**
- * Foundational Layout Shell
- * Establishes routing dependency & base container without implementing feature UI screens yet.
+ * Foundational Root Layout Shell
+ * Wraps routes in ShellProvider context and GlobalAppShell.
  */
 const RootLayout: React.FC = () => {
   return (
-    <div className="min-h-screen bg-surface font-body-md text-body-md text-on-surface flex flex-col">
-      <Outlet />
-    </div>
+    <ShellProvider>
+      <GlobalAppShell>
+        <Outlet />
+      </GlobalAppShell>
+    </ShellProvider>
   );
 };
 
 /**
- * Foundation Status Placeholder
- * Confirms foundation setup, theme configuration, and ready state for subsequent development loops.
+ * Loop 1 Design System & Shell Verification Entry Point
+ * Demonstrates shell controls, design system tokens, and UI components
+ * WITHOUT implementing any of the 5 feature screens or business logic.
  */
-const FoundationEntryPoint: React.FC = () => {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-margin py-space-xl text-center bg-surface">
-      <div className="max-w-md w-full bg-surface-container-lowest p-space-lg rounded-xl shadow-sm border border-outline-variant/30 flex flex-col items-center gap-space-md">
-        <div className="w-14 h-14 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm">
-          <span className="material-symbols-outlined text-[32px]">health_and_safety</span>
-        </div>
+const DesignSystemVerificationPage: React.FC = () => {
+  const shell = useShell();
 
-        <div className="flex flex-col gap-1 items-center">
-          <div className="flex items-center gap-space-xs">
-            <h1 className="font-headline-md text-headline-md text-primary font-bold">Sutradhar AI</h1>
-            <span className="font-code-xs text-code-xs bg-primary-container text-on-primary font-semibold px-space-xs py-0.5 rounded">
-              SIH26133
-            </span>
-          </div>
-          <span className="font-label-sm text-label-sm text-on-surface-variant">
-            Rural Care-Gap Intelligence
+  const handleTestToast = () => {
+    shell.showToast(
+      'Sample feedback',
+      'Simulated component state from the Loop 1 placeholder.',
+      'success'
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-space-sm px-margin py-space-sm w-full">
+      {/* Offline Status Sub-Banner */}
+      <OfflineStatus />
+
+      {/* Persona / Role Active State Card */}
+      <Card variant="default" padding="md">
+        <div className="flex items-center justify-between">
+          <span className="font-code-xs text-code-xs text-secondary tracking-wider uppercase font-semibold">
+            Active Persona Context
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container text-primary font-code-xs text-code-xs font-bold shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            {shell.role === 'FRONTLINE_ASHA'
+              ? 'FRONTLINE (ASHA)'
+              : 'FACILITY (CLINICIAN)'}
           </span>
         </div>
 
-        <div className="w-full bg-surface-container-low p-space-sm rounded-lg flex flex-col gap-1 text-left">
-          <div className="flex items-center justify-between">
-            <span className="font-label-sm text-label-sm text-on-surface font-semibold">Project Foundation</span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container-lowest text-tertiary font-code-xs text-code-xs font-bold shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
-              INITIALIZED
-            </span>
-          </div>
-          <p className="font-code-xs text-code-xs text-on-surface-variant">
-            Vite + React 18 + TypeScript + Tailwind CSS
+        <div className="mt-space-xs">
+          <h2 className="font-headline-sm text-headline-sm text-on-surface font-bold">
+            {shell.role === 'FRONTLINE_ASHA' ? 'Frontline role' : 'Facility role'}
+          </h2>
+          <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+            Shared application shell preview. No feature workflow is implemented.
           </p>
         </div>
 
-        <div className="w-full text-left flex flex-col gap-1.5 text-on-surface-variant font-code-xs text-code-xs border-t border-outline-variant/20 pt-space-sm">
-          <p className="font-bold text-on-surface uppercase tracking-wider">Visual Truth Target:</p>
-          <p>• Stitch Project: <span className="font-mono text-primary font-semibold">17303241276460966652</span></p>
-          <p>• Design Theme: <span className="font-semibold text-on-surface">Rural Care Orchestration</span></p>
-          <p>• Target Viewport: <span className="font-semibold text-on-surface">Mobile (390px / 780px canvas)</span></p>
-          <p>• Scope: <span className="text-secondary font-medium">Foundation Only (Screens & Features Unmounted)</span></p>
+        <div className="mt-space-sm pt-space-xs border-t border-outline-variant/20 flex items-center justify-between">
+          <span className="font-code-xs text-code-xs text-on-surface-variant">
+            Active Bottom Tab: <strong className="text-primary font-bold uppercase">{shell.activeTab}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              shell.setRole(
+                shell.role === 'FRONTLINE_ASHA'
+                  ? 'FACILITY_CLINICIAN'
+                  : 'FRONTLINE_ASHA'
+              )
+            }
+            className="min-h-[48px] px-space-sm font-code-xs text-code-xs text-primary font-bold hover:underline cursor-pointer"
+          >
+            Toggle Role
+          </button>
         </div>
+      </Card>
+
+      {/* Patient Identity Showcase */}
+      <Card variant="alert" padding="md">
+        <SectionHeader title="Synthetic Identity Component" tag="DEMO" />
+        <PatientIdentity
+          fullName="Demo Beneficiary"
+          initials="DB"
+          syntheticId="DEMO-00125"
+        />
+      </Card>
+
+      {/* Status Badges Showcase */}
+      <Card variant="default" padding="md">
+        <SectionHeader title="Status & Priority Chips" tag="DETERMINISTIC" />
+        <div className="flex flex-wrap items-center gap-space-xs">
+          <CareGapBadge label="2 CRITICAL" isExpired />
+          <CareGapBadge label="ACTION REQ" />
+          <ReferralStatusBadge status="IN_TRANSIT" />
+          <ReferralStatusBadge status="AWAITING_ARRIVAL" />
+          <ReferralStatusBadge status="ARRIVED" />
+          <VerifiedBadge label="EVIDENCED" subtext="Closure" />
+          <StatusBadge label="Local Cache Synced" variant="success" pulse />
+          <StatusBadge label="Offline Queue" variant="warning" />
+        </div>
+      </Card>
+
+      {/* Interactive Controls & Buttons Showcase */}
+      <Card variant="default" padding="md">
+        <SectionHeader
+          title="Interactive Buttons"
+          tag="≥ 48px TOUCH FOOTPRINT"
+        />
+        <div className="flex flex-col gap-space-xs mt-space-xs">
+          <PrimaryButton
+            icon="notifications"
+            onClick={handleTestToast}
+          >
+            Trigger Verification Feedback Toast
+          </PrimaryButton>
+
+          <SecondaryButton
+            icon="sync"
+            onClick={shell.toggleOnline}
+          >
+            Simulate Connection: Currently {shell.isOnline ? 'ONLINE' : 'OFFLINE'}
+          </SecondaryButton>
+
+          <div className="grid grid-cols-2 gap-space-xs mt-0.5">
+            <ResolutionButton
+              icon="task_alt"
+              onClick={() =>
+                shell.showToast(
+                    'Success state sample',
+                    'Simulated component feedback only.',
+                  'success'
+                )
+              }
+            >
+              Success state
+            </ResolutionButton>
+
+            <DestructiveButton
+              icon="emergency"
+              onClick={() =>
+                shell.showToast(
+                    'Alert state sample',
+                    'Simulated component feedback only.',
+                  'alert'
+                )
+              }
+            >
+              Alert state
+            </DestructiveButton>
+          </div>
+        </div>
+      </Card>
+
+      {/* Visual Source of Truth Notice */}
+      <div className="px-space-xs py-space-sm text-center">
+        <span className="font-code-xs text-code-xs text-secondary leading-tight block">
+          Loop 1 Complete • Frozen Visual Truth: Stitch Project 17303241276460966652
+          <br />
+          No feature screens mounted • Foundation &amp; Design System Operational
+        </span>
       </div>
     </div>
   );
@@ -69,7 +190,7 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <FoundationEntryPoint />,
+        element: <DesignSystemVerificationPage />,
       },
     ],
   },

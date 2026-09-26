@@ -54,13 +54,14 @@ export default {
         "error-container": "#ffdad6",
         "on-surface": "#0b1c30",
         "tertiary": "#005022",
-        "primary": "#0037b0"
+        "primary": "#0037b0",
+        "warning": "#d97706"
       },
       borderRadius: {
         "DEFAULT": "0.125rem",
         "lg": "0.25rem",
         "xl": "0.5rem",
-        "full": "0.75rem"
+        "full": "9999px"
       },
       spacing: {
         "gutter-tablet": "1.25rem",
