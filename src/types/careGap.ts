@@ -5,6 +5,12 @@
 
 export type CareGapStatus = 'DETECTED' | 'PREDICTED' | 'DISPATCHED' | 'EXPIRED' | 'CLOSED';
 
+export interface ScreeningObservation {
+  bloodPressureSystolic: number;
+  bloodPressureDiastolic: number;
+  hemoglobinGdl: number;
+}
+
 export interface TimelineEvent {
   id: string;
   date: string;
@@ -13,6 +19,7 @@ export interface TimelineEvent {
   facilityOrLocation: string;
   statusType: 'SCREENING' | 'DISPATCH' | 'EXPIRY' | 'ALERT' | 'CLOSURE';
   isHighlighted?: boolean;
+  screeningObservation?: ScreeningObservation;
 }
 
 export interface OperationalExplanation {

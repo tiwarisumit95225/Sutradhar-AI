@@ -27,6 +27,11 @@ export const SYNTHETIC_CARE_GAPS: CareGap[] = [
           description: 'BP 142/92 mmHg, Hb 9.8 g/dL recorded during village field screening.',
           facilityOrLocation: 'Rampur Sub-Center',
           statusType: 'SCREENING',
+          screeningObservation: {
+            bloodPressureSystolic: 142,
+            bloodPressureDiastolic: 92,
+            hemoglobinGdl: 9.8,
+          },
         },
         {
           id: 'ev-2',
