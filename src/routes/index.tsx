@@ -26,6 +26,7 @@ import {
   Toast,
 } from '../components/common';
 import type { UserRole } from '../context/ShellContext';
+import FrontlineDashboardPage from './FrontlineDashboardPage';
 import { ROUTE_PATHS } from './paths';
 
 /**
@@ -403,7 +404,7 @@ export const router = createBrowserRouter([
         element: <ApplicationShellLayout />,
         children: [
           { path: ROUTE_PATHS.designSystem, element: <DesignSystemVerificationPage /> },
-          { path: ROUTE_PATHS.frontlineDashboard, element: <RoutePlaceholder title="Frontline Dashboard" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
+          { path: ROUTE_PATHS.frontlineDashboard, element: <FrontlineDashboardPage /> },
           { path: '/frontline/patient/:patientId', element: <FrontlinePatientPage /> },
           { path: '/frontline/screening/:patientId', element: <FrontlineScreeningPage /> },
           { path: ROUTE_PATHS.frontlineCareGaps, element: <RoutePlaceholder title="Care Gaps" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },

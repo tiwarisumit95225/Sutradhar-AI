@@ -6,7 +6,7 @@ import { ReferralRecord } from '../../types';
 export const SYNTHETIC_REFERRALS: ReferralRecord[] = [
   {
     id: 'REF-2026-00125',
-    beneficiaryId: 'DEMO-RAM-058',
+    beneficiaryId: 'DEMO-00125',
     destinationFacilityId: 'chc-bikrampur',
     clinicalIndication: 'Pre-eclampsia triage & Obstetric USG evaluation (BP 142/92, Hb 9.8)',
     currentTransitStatus: 'In Transit via Rural Auto-Rickshaw',

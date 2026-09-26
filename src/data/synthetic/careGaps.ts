@@ -6,7 +6,7 @@ import { CareGap } from '../../types';
 export const SYNTHETIC_CARE_GAPS: CareGap[] = [
   {
     id: 'GAP-2026-081',
-    beneficiaryId: 'DEMO-RAM-058',
+    beneficiaryId: 'DEMO-00125',
     title: 'Missed ANC Check 3 & Essential Ultrasonography',
     subType: 'Maternal High-Risk Surveillance Interval Breach',
     status: 'EXPIRED',

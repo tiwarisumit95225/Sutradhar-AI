@@ -6,11 +6,11 @@ import { Beneficiary } from '../../types';
  */
 export const SYNTHETIC_BENEFICIARIES: Beneficiary[] = [
   {
-    id: 'DEMO-RAM-058',
+    id: 'DEMO-00125',
     syntheticAbhaId: '91-8273-1928-4412',
     syntheticRchId: 'RCH-2026-MP-0912',
     fullName: 'Sunita Devi',
-    age: 26,
+    age: 42,
     gender: 'FEMALE',
     village: 'Kalyanpur Village',
     section: 'RAMPUR SEC-A',
