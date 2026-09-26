@@ -27,6 +27,7 @@ import {
 } from '../components/common';
 import type { UserRole } from '../context/ShellContext';
 import FrontlineDashboardPage from './FrontlineDashboardPage';
+import PatientProfilePage from './PatientProfilePage';
 import { ROUTE_PATHS } from './paths';
 
 /**
@@ -246,18 +247,6 @@ const RoutePlaceholder: React.FC<RoutePlaceholderProps> = ({
   );
 };
 
-const FrontlinePatientPage: React.FC = () => {
-  const { patientId } = useParams<'patientId'>();
-  return (
-    <RoutePlaceholder
-      title="Patient Profile"
-      dashboardPath={ROUTE_PATHS.frontlineDashboard}
-      parameterLabel="Patient ID"
-      parameterValue={patientId}
-    />
-  );
-};
-
 const FrontlineScreeningPage: React.FC = () => {
   const { patientId } = useParams<'patientId'>();
   return (
@@ -405,7 +394,7 @@ export const router = createBrowserRouter([
         children: [
           { path: ROUTE_PATHS.designSystem, element: <DesignSystemVerificationPage /> },
           { path: ROUTE_PATHS.frontlineDashboard, element: <FrontlineDashboardPage /> },
-          { path: '/frontline/patient/:patientId', element: <FrontlinePatientPage /> },
+          { path: '/frontline/patient/:patientId', element: <PatientProfilePage /> },
           { path: '/frontline/screening/:patientId', element: <FrontlineScreeningPage /> },
           { path: ROUTE_PATHS.frontlineCareGaps, element: <RoutePlaceholder title="Care Gaps" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
           { path: '/frontline/referral/:referralId', element: <FrontlineReferralPage /> },
