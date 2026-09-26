@@ -1,12 +1,20 @@
-import React from 'react';
-import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  RouterProvider,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
 import { ShellProvider, useShell } from '../context/ShellContext';
-import { GlobalAppShell } from '../components/layout';
+import { BrandBlock, GlobalAppShell } from '../components/layout';
 import {
   Card,
-  SectionHeader,
   PrimaryButton,
   SecondaryButton,
+  SectionHeader,
   ResolutionButton,
   DestructiveButton,
   StatusBadge,
@@ -15,20 +23,16 @@ import {
   VerifiedBadge,
   OfflineStatus,
   PatientIdentity,
+  Toast,
 } from '../components/common';
+import type { UserRole } from '../context/ShellContext';
+import { ROUTE_PATHS } from './paths';
 
 /**
- * Foundational Root Layout Shell
- * Wraps routes in ShellProvider context and GlobalAppShell.
+ * Shared context spans login and authenticated-shell placeholder routes.
  */
 const RootLayout: React.FC = () => {
-  return (
-    <ShellProvider>
-      <GlobalAppShell>
-        <Outlet />
-      </GlobalAppShell>
-    </ShellProvider>
-  );
+  return <ShellProvider><Outlet /></ShellProvider>;
 };
 
 /**
@@ -38,6 +42,7 @@ const RootLayout: React.FC = () => {
  */
 const DesignSystemVerificationPage: React.FC = () => {
   const shell = useShell();
+  const navigate = useNavigate();
 
   const handleTestToast = () => {
     shell.showToast(
@@ -82,15 +87,15 @@ const DesignSystemVerificationPage: React.FC = () => {
           <button
             type="button"
             onClick={() =>
-              shell.setRole(
+              navigate(
                 shell.role === 'FRONTLINE_ASHA'
-                  ? 'FACILITY_CLINICIAN'
-                  : 'FRONTLINE_ASHA'
+                  ? ROUTE_PATHS.frontlineDashboard
+                  : ROUTE_PATHS.facilityDashboard
               )
             }
             className="min-h-[48px] px-space-sm font-code-xs text-code-xs text-primary font-bold hover:underline cursor-pointer"
           >
-            Toggle Role
+            Open role dashboard
           </button>
         </div>
       </Card>
@@ -183,14 +188,233 @@ const DesignSystemVerificationPage: React.FC = () => {
   );
 };
 
+interface RoutePlaceholderProps {
+  title: string;
+  dashboardPath: string;
+  parameterLabel?: 'Patient ID' | 'Referral ID';
+  parameterValue?: string;
+}
+
+const RoutePlaceholder: React.FC<RoutePlaceholderProps> = ({
+  title,
+  dashboardPath,
+  parameterLabel,
+  parameterValue,
+}) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex w-full flex-col gap-space-sm px-margin py-space-sm">
+      <OfflineStatus />
+      <Card variant="default" padding="md">
+        <SectionHeader title={title} tag="PLACEHOLDER" />
+        <h1 className="font-headline-md text-headline-md text-on-surface font-bold">
+          {title}
+        </h1>
+        <p className="font-body-md text-body-md text-on-surface-variant mt-space-xs">
+          Prototype destination only. This feature is not implemented.
+        </p>
+        <div className="mt-space-sm rounded-lg bg-surface-container-low p-space-sm">
+          <span className="block font-code-xs text-code-xs text-on-surface-variant">
+            CURRENT DESTINATION
+          </span>
+          <span className="block break-all font-code-sm text-code-sm text-primary">
+            {location.pathname}
+          </span>
+        </div>
+        {parameterLabel && parameterValue && (
+          <div className="mt-space-sm">
+            <span className="font-label-sm text-label-sm text-on-surface-variant">
+              {parameterLabel}
+            </span>
+            <span className="ml-space-sm font-code-sm text-code-sm text-on-surface">
+              {parameterValue}
+            </span>
+          </div>
+        )}
+        <SecondaryButton
+          icon="arrow_back"
+          className="mt-space-md"
+          onClick={() => navigate(dashboardPath)}
+        >
+          Back to dashboard
+        </SecondaryButton>
+      </Card>
+    </div>
+  );
+};
+
+const FrontlinePatientPage: React.FC = () => {
+  const { patientId } = useParams<'patientId'>();
+  return (
+    <RoutePlaceholder
+      title="Patient Profile"
+      dashboardPath={ROUTE_PATHS.frontlineDashboard}
+      parameterLabel="Patient ID"
+      parameterValue={patientId}
+    />
+  );
+};
+
+const FrontlineScreeningPage: React.FC = () => {
+  const { patientId } = useParams<'patientId'>();
+  return (
+    <RoutePlaceholder
+      title="Screening"
+      dashboardPath={ROUTE_PATHS.frontlineDashboard}
+      parameterLabel="Patient ID"
+      parameterValue={patientId}
+    />
+  );
+};
+
+const FrontlineReferralPage: React.FC = () => {
+  const { referralId } = useParams<'referralId'>();
+  return (
+    <RoutePlaceholder
+      title="Referral Details"
+      dashboardPath={ROUTE_PATHS.frontlineDashboard}
+      parameterLabel="Referral ID"
+      parameterValue={referralId}
+    />
+  );
+};
+
+const FrontlineClosurePage: React.FC = () => {
+  const { patientId } = useParams<'patientId'>();
+  return (
+    <RoutePlaceholder
+      title="Care Closure"
+      dashboardPath={ROUTE_PATHS.frontlineDashboard}
+      parameterLabel="Patient ID"
+      parameterValue={patientId}
+    />
+  );
+};
+
+const FacilityReferralPage: React.FC = () => {
+  const { referralId } = useParams<'referralId'>();
+  return (
+    <RoutePlaceholder
+      title="Facility Referral"
+      dashboardPath={ROUTE_PATHS.facilityDashboard}
+      parameterLabel="Referral ID"
+      parameterValue={referralId}
+    />
+  );
+};
+
+const FacilityClosurePage: React.FC = () => {
+  const { patientId } = useParams<'patientId'>();
+  return (
+    <RoutePlaceholder
+      title="Facility Closure"
+      dashboardPath={ROUTE_PATHS.facilityDashboard}
+      parameterLabel="Patient ID"
+      parameterValue={patientId}
+    />
+  );
+};
+
+const LoginPage: React.FC = () => {
+  const shell = useShell();
+  const navigate = useNavigate();
+
+  const selectRole = (role: UserRole) => {
+    shell.setRole(role);
+    navigate(
+      role === 'FRONTLINE_ASHA'
+        ? ROUTE_PATHS.frontlineDashboard
+        : ROUTE_PATHS.facilityDashboard
+    );
+  };
+
+  return (
+    <main className="min-h-screen bg-surface px-margin py-space-lg pt-safe pb-safe flex items-center">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-space-md">
+        <BrandBlock />
+        <OfflineStatus />
+        <Card variant="default" padding="lg">
+          <SectionHeader title="Prototype Role Selection" tag="NO SIGN-IN" />
+          <h1 className="font-headline-lg text-headline-lg text-on-surface font-bold">
+            Choose your role
+          </h1>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-space-xs mb-space-md">
+            Select a prototype view. Authentication is not implemented.
+          </p>
+          <div className="flex flex-col gap-space-sm">
+            <PrimaryButton icon="groups" onClick={() => selectRole('FRONTLINE_ASHA')}>
+              Frontline Worker
+            </PrimaryButton>
+            <SecondaryButton
+              icon="medical_services"
+              onClick={() => selectRole('FACILITY_CLINICIAN')}
+            >
+              Facility / Clinician
+            </SecondaryButton>
+          </div>
+        </Card>
+      </div>
+      <Toast toast={shell.toast} onClose={shell.hideToast} />
+    </main>
+  );
+};
+
+const NotFoundPage: React.FC = () => (
+  <RoutePlaceholder
+    title="Page Not Found"
+    dashboardPath={ROUTE_PATHS.frontlineDashboard}
+  />
+);
+
+const activeTabForPath = (pathname: string): string => {
+  if (pathname.includes('/screening/')) return 'screening';
+  if (pathname.includes('/care-gaps')) return 'care-gaps';
+  if (pathname.includes('/referral/') || pathname.includes('/closure/')) return 'referrals';
+  if (pathname.includes('/district/')) return 'district';
+  return 'dashboard';
+};
+
+const ApplicationShellLayout: React.FC = () => {
+  const { pathname } = useLocation();
+  const { setActiveTab, setRole } = useShell();
+
+  useEffect(() => {
+    if (pathname.startsWith('/frontline/')) setRole('FRONTLINE_ASHA');
+    if (pathname.startsWith('/facility/')) setRole('FACILITY_CLINICIAN');
+    setActiveTab(activeTabForPath(pathname));
+  }, [pathname, setActiveTab, setRole]);
+
+  return (
+    <GlobalAppShell>
+      <Outlet />
+    </GlobalAppShell>
+  );
+};
+
 export const router = createBrowserRouter([
   {
-    path: '/',
     element: <RootLayout />,
     children: [
+      { index: true, element: <Navigate to={ROUTE_PATHS.login} replace /> },
+      { path: ROUTE_PATHS.login, element: <LoginPage /> },
       {
-        index: true,
-        element: <DesignSystemVerificationPage />,
+        element: <ApplicationShellLayout />,
+        children: [
+          { path: ROUTE_PATHS.designSystem, element: <DesignSystemVerificationPage /> },
+          { path: ROUTE_PATHS.frontlineDashboard, element: <RoutePlaceholder title="Frontline Dashboard" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
+          { path: '/frontline/patient/:patientId', element: <FrontlinePatientPage /> },
+          { path: '/frontline/screening/:patientId', element: <FrontlineScreeningPage /> },
+          { path: ROUTE_PATHS.frontlineCareGaps, element: <RoutePlaceholder title="Care Gaps" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
+          { path: '/frontline/referral/:referralId', element: <FrontlineReferralPage /> },
+          { path: '/frontline/closure/:patientId', element: <FrontlineClosurePage /> },
+          { path: ROUTE_PATHS.facilityDashboard, element: <RoutePlaceholder title="Facility Dashboard" dashboardPath={ROUTE_PATHS.facilityDashboard} /> },
+          { path: '/facility/referral/:referralId', element: <FacilityReferralPage /> },
+          { path: '/facility/closure/:patientId', element: <FacilityClosurePage /> },
+          { path: ROUTE_PATHS.districtIntelligence, element: <RoutePlaceholder title="District Intelligence" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
+          { path: '*', element: <NotFoundPage /> },
+        ],
       },
     ],
   },

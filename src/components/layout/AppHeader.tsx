@@ -1,9 +1,11 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BrandBlock } from './BrandBlock';
 import { SyncStatus } from './SyncStatus';
 import { RoleSwitcher } from './RoleSwitcher';
 import { UserProfile } from './UserProfile';
 import { useShell, UserRole } from '../../context/ShellContext';
+import { ROUTE_PATHS } from '../../routes/paths';
 
 export interface AppHeaderProps {
   subtitle?: string;
@@ -23,9 +25,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   className = '',
 }) => {
   const shell = useShell();
+  const navigate = useNavigate();
 
   const activeRole = role ?? shell.role;
-  const handleRoleChange = onRoleChange ?? shell.setRole;
+  const handleRoleChange = (nextRole: UserRole) => {
+    (onRoleChange ?? shell.setRole)(nextRole);
+    navigate(
+      nextRole === 'FRONTLINE_ASHA'
+        ? ROUTE_PATHS.frontlineDashboard
+        : ROUTE_PATHS.facilityDashboard
+    );
+  };
   const activeOnline = isOnline ?? shell.isOnline;
   const handleToggleOnline = onToggleOnline ?? shell.toggleOnline;
 

@@ -1,5 +1,7 @@
 import React from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useShell } from '../../context/ShellContext';
+import { DEMO_PATIENT_ID, DEMO_REFERRAL_ID, ROUTE_PATHS } from '../../routes/paths';
 
 export interface NavTabItem {
   id: string;
@@ -30,8 +32,45 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   className = '',
 }) => {
   const shell = useShell();
-  const currentTab = activeTab ?? shell.activeTab;
-  const handleTabChange = onTabChange ?? shell.setActiveTab;
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { patientId, referralId } = useParams<'patientId' | 'referralId'>();
+  const currentRole = location.pathname.startsWith('/facility/')
+    ? 'FACILITY_CLINICIAN'
+    : shell.role;
+  const inferredTab = location.pathname.includes('/screening/')
+    ? 'screening'
+    : location.pathname.includes('/care-gaps')
+      ? 'care-gaps'
+      : location.pathname.includes('/referral/') || location.pathname.includes('/closure/')
+        ? 'referrals'
+        : location.pathname.includes('/district/')
+          ? 'district'
+          : shell.activeTab;
+  const currentTab = activeTab ?? inferredTab;
+
+  const handleTabChange = (tabId: string) => {
+    if (onTabChange) {
+      onTabChange(tabId);
+      return;
+    }
+
+    shell.setActiveTab(tabId);
+    const isFacility = currentRole === 'FACILITY_CLINICIAN';
+    const destinationByTab: Record<string, string> = {
+      dashboard: isFacility
+        ? ROUTE_PATHS.facilityDashboard
+        : ROUTE_PATHS.frontlineDashboard,
+      screening: ROUTE_PATHS.frontlineScreening(patientId ?? DEMO_PATIENT_ID),
+      referrals: isFacility
+        ? ROUTE_PATHS.facilityReferral(referralId ?? DEMO_REFERRAL_ID)
+        : ROUTE_PATHS.frontlineReferral(referralId ?? DEMO_REFERRAL_ID),
+      'care-gaps': ROUTE_PATHS.frontlineCareGaps,
+      district: ROUTE_PATHS.districtIntelligence,
+    };
+    const destination = destinationByTab[tabId];
+    if (destination) navigate(destination);
+  };
 
   return (
     <nav
