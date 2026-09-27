@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, OfflineStatus, PatientIdentity, PrimaryButton, ReferralStatusBadge, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
+import { Card, OfflineStatus, PatientIdentity, PrimaryButton, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
 import FacilityCard from '../components/facility/FacilityCard';
 import FacilityMap from '../components/facility/FacilityMap';
 import { useShell } from '../context/ShellContext';
 import { getFacilities, getFacilityById, SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../data/synthetic';
 import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
 import { getReferralRequirements, rankFacilityOptions } from '../rules/facilitySuitability';
+import { createInitialReferralSnapshot, getNextReferralStep, getReferralLifecycleLabel } from '../rules/referralLifecycle';
+import type { ReferralLifecycleState } from '../types';
 import { ROUTE_PATHS } from './paths';
 
 const SmartReferralPage: React.FC = () => {
@@ -18,12 +20,16 @@ const SmartReferralPage: React.FC = () => {
     ? SYNTHETIC_BENEFICIARIES.find((item) => item.id === referral.beneficiaryId)
     : undefined;
   const destinationFacility = referral ? getFacilityById(referral.destinationFacilityId) : undefined;
+  const lifecycle = referral
+    ? shell.referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral)
+    : undefined;
 
   const engineResults = useMemo(() => getCareGapsForBeneficiary({
     beneficiaries: SYNTHETIC_BENEFICIARIES,
     careGaps: SYNTHETIC_CARE_GAPS,
     referrals: SYNTHETIC_REFERRALS,
-  }, patient?.id), [patient?.id]);
+    referralLifecycle: shell.referralLifecycle,
+  }, patient?.id), [patient?.id, shell.referralLifecycle]);
   const careGapContext = engineResults[0];
   const requirements = useMemo(() => getReferralRequirements(careGapContext), [careGapContext]);
   const options = useMemo(() => rankFacilityOptions(getFacilities(), requirements), [requirements]);
@@ -41,6 +47,22 @@ const SmartReferralPage: React.FC = () => {
   const selectedOption = options.find((option) => option.facility.id === selectedFacilityId);
   const selectedFacility = selectedOption?.facility;
   const selectedIsRecommended = selectedFacility?.id === recommendedOption?.facility.id;
+
+  const handleLifecycleTransition = (nextState: ReferralLifecycleState) => {
+    if (!referral) return;
+    const result = shell.transitionReferralState(referral.id, nextState);
+    if (!result) {
+      shell.showToast('Referral not found', 'No synthetic referral record is available for this transition.', 'alert');
+    } else if (!result.ok) {
+      shell.showToast('Transition unavailable', result.reason, 'alert');
+    } else if (nextState === 'REACHED') {
+      shell.showToast('Simulated arrival recorded', 'REACHED is a prototype state only; this is not facility verification.', 'success');
+    } else if (nextState === 'TIMEOUT') {
+      shell.showToast('Simulated timeout recorded', 'The Care-Gap Engine will review this demo timeout event.', 'info');
+    } else {
+      shell.showToast('Referral state updated', `The prototype state is now ${getReferralLifecycleLabel(nextState)}.`, 'info');
+    }
+  };
 
   if (!referral || !patient || !destinationFacility) {
     return (
@@ -107,11 +129,69 @@ const SmartReferralPage: React.FC = () => {
                 assignedAshaName={patient.assignedAshaName}
               />
               <div className="mt-space-sm flex flex-wrap items-center gap-space-xs border-t border-outline-variant/30 pt-space-sm">
-                <ReferralStatusBadge status={referral.handshake.arrivalAcknowledged ? 'ARRIVED' : 'IN_TRANSIT'} />
+                {lifecycle && <StatusBadge label={`${getReferralLifecycleLabel(lifecycle.state)} · SIMULATED STATE`} variant={lifecycle.state === 'TIMEOUT' ? 'critical' : lifecycle.state === 'REACHED' ? 'success' : lifecycle.state === 'REACH_PENDING' ? 'warning' : 'primary'} />}
                 <span className="font-body-sm text-body-sm text-on-surface-variant">Existing destination: {destinationFacility.name}</span>
               </div>
             </Card>
           </section>
+
+          {referral && lifecycle && (
+            <section aria-labelledby="referral-lifecycle-heading">
+              <SectionHeader title="Referral lifecycle" tag="PROTOTYPE STATE" />
+              <Card variant={lifecycle.state === 'TIMEOUT' ? 'alert' : 'default'} padding="md">
+                <h2 id="referral-lifecycle-heading" className="font-headline-sm text-headline-sm font-bold text-on-surface">{referral.id}</h2>
+                <div aria-live="polite" aria-atomic="true" className="mt-space-sm flex flex-wrap items-center gap-space-xs">
+                  <StatusBadge
+                    label={`${getReferralLifecycleLabel(lifecycle.state)} · SIMULATED`}
+                    variant={lifecycle.state === 'TIMEOUT' ? 'critical' : lifecycle.state === 'REACHED' ? 'success' : lifecycle.state === 'REACH_PENDING' ? 'warning' : 'primary'}
+                  />
+                  <span className="font-body-sm text-body-sm text-on-surface-variant">Destination: {destinationFacility.name}</span>
+                </div>
+                <div className="mt-space-sm rounded-lg bg-surface-container-low p-space-sm">
+                  <span className="font-label-sm text-label-sm font-semibold text-on-surface-variant">Next expected step</span>
+                  <p className="mt-0.5 font-body-sm text-body-sm font-semibold text-on-surface">{getNextReferralStep(lifecycle.state)}</p>
+                </div>
+                <div className="mt-space-sm">
+                  <span className="font-label-sm text-label-sm font-semibold text-on-surface-variant">State timeline · only recorded events</span>
+                  <ol className="mt-space-xs space-y-space-xs">
+                    {lifecycle.history.map((event, index) => (
+                      <li key={event.id} className="flex min-w-0 gap-space-xs border-l-2 border-outline-variant pl-space-sm">
+                        <span aria-hidden="true" className="font-code-xs text-code-xs text-primary">{index + 1}.</span>
+                        <div className="min-w-0">
+                          <p className="font-label-md text-label-md text-on-surface">{getReferralLifecycleLabel(event.state)}</p>
+                          <p className="break-words font-body-sm text-body-sm text-on-surface-variant">{event.detail}</p>
+                          <p className="font-code-xs text-code-xs text-secondary">
+                            {event.timestamp ?? (event.source === 'SIMULATION' ? 'Simulated in this session · no timestamp recorded' : 'Synthetic record · no timestamp recorded')}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                <div className="mt-space-sm flex flex-col gap-space-xs sm:flex-row sm:flex-wrap">
+                  {lifecycle.state === 'REFERRED' && (
+                    <PrimaryButton icon="play_arrow" onClick={() => handleLifecycleTransition('REACH_PENDING')}>
+                      Start Referral · Simulate
+                    </PrimaryButton>
+                  )}
+                  {lifecycle.state === 'REACH_PENDING' && <>
+                    <PrimaryButton icon="location_on" onClick={() => handleLifecycleTransition('REACHED')}>
+                      Simulate Arrival
+                    </PrimaryButton>
+                    <SecondaryButton icon="schedule" onClick={() => handleLifecycleTransition('TIMEOUT')}>
+                      Simulate Missed Arrival
+                    </SecondaryButton>
+                  </>}
+                  {(lifecycle.state === 'REACHED' || lifecycle.state === 'TIMEOUT') && (
+                    <p className="font-body-sm text-on-surface-variant">No further lifecycle action is available in this loop. Later care steps are placeholders.</p>
+                  )}
+                </div>
+                <p aria-live="polite" className="mt-space-sm border-t border-outline-variant/30 pt-space-sm font-body-sm text-on-surface-variant">
+                  Simulation only. REACHED does not mean facility verification, treatment, or care completion.
+                </p>
+              </Card>
+            </section>
+          )}
 
           <section aria-labelledby="care-gap-context-heading">
             <SectionHeader title="Care-gap context" tag="CARE-GAP ENGINE" />

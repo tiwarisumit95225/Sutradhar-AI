@@ -6,7 +6,6 @@ import {
   OfflineStatus,
   PatientIdentity,
   PrimaryButton,
-  ReferralStatusBadge,
   SectionHeader,
   SecondaryButton,
   StatusBadge,
@@ -18,6 +17,8 @@ import {
   SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
 import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
+import { createInitialReferralSnapshot, getNextReferralStep, getReferralLifecycleLabel } from '../rules/referralLifecycle';
+import { useShell } from '../context/ShellContext';
 import { ROUTE_PATHS } from './paths';
 
 const JOURNEY_STAGES = [
@@ -65,21 +66,26 @@ const PatientNotFound: React.FC<{ patientId: string | undefined }> = ({ patientI
 const PatientProfilePage: React.FC = () => {
   const { patientId } = useParams<'patientId'>();
   const navigate = useNavigate();
+  const shell = useShell();
   const patient = SYNTHETIC_BENEFICIARIES.find((item) => item.id === patientId);
 
   if (!patient) return <PatientNotFound patientId={patientId} />;
 
+  const referral = SYNTHETIC_REFERRALS.find(
+    (record) => record.beneficiaryId === patient.id
+  );
+  const lifecycle = referral
+    ? shell.referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral)
+    : undefined;
   const [activeCareGapResult] = getCareGapsForBeneficiary({
     beneficiaries: SYNTHETIC_BENEFICIARIES,
     careGaps: SYNTHETIC_CARE_GAPS,
     referrals: SYNTHETIC_REFERRALS,
+    referralLifecycle: shell.referralLifecycle,
   }, patient.id);
   const activeCareGap = activeCareGapResult?.careGap;
-  const referral = SYNTHETIC_REFERRALS.find(
-    (record) => record.beneficiaryId === patient.id
-  );
   const facility = referral ? getFacilityById(referral.destinationFacilityId) : undefined;
-  const currentMilestone = referral?.milestones.find((milestone) => milestone.active);
+  const currentMilestoneLabel = lifecycle ? getNextReferralStep(lifecycle.state) : undefined;
   const referredAt = referral?.milestones.find(
     (milestone) => milestone.milestone === 'REFERRED'
   )?.timestamp;
@@ -107,8 +113,9 @@ const PatientProfilePage: React.FC = () => {
           <StatusBadge label={`${patient.urgencyTier} PRIORITY`} variant="critical" />
           <StatusBadge label="SCREENING RECORDED" variant="success" />
           {referral && (
-            <ReferralStatusBadge
-              status={referral.handshake.arrivalAcknowledged ? 'ARRIVED' : 'AWAITING_ARRIVAL'}
+            <StatusBadge
+              label={`${getReferralLifecycleLabel(lifecycle?.state ?? 'REFERRED')} · SIMULATED STATE`}
+              variant={lifecycle?.state === 'TIMEOUT' ? 'critical' : lifecycle?.state === 'REACHED' ? 'success' : lifecycle?.state === 'REACH_PENDING' ? 'warning' : 'primary'}
             />
           )}
         </div>
@@ -127,7 +134,7 @@ const PatientProfilePage: React.FC = () => {
       <section aria-label="Current care state">
         <SectionHeader
           title="Current Care State"
-          subtitle={currentMilestone?.label ?? 'Screening recorded'}
+          subtitle={currentMilestoneLabel ?? 'Screening recorded'}
           tag="SCREEN → CLOSURE"
         />
         <Card variant="default" padding="md">
@@ -136,8 +143,16 @@ const PatientProfilePage: React.FC = () => {
               const milestone = referral?.milestones.find(
                 (item) => item.milestone === stage.milestone
               );
-              const isCurrent = milestone?.active ?? (!referral && index === 0);
-              const isComplete = milestone?.completed ?? (!referral && index === 0);
+              const isReach = stage.milestone === 'REACH_PENDING';
+              const isReceive = stage.milestone === 'RECEIVED';
+              const isCurrent = isReach
+                ? lifecycle?.state === 'REACH_PENDING' || lifecycle?.state === 'TIMEOUT'
+                : isReceive
+                  ? lifecycle?.state === 'REACHED'
+                  : milestone?.active ?? (!referral && index === 0);
+              const isComplete = isReach
+                ? lifecycle?.state === 'REACHED'
+                : milestone?.completed ?? (!referral && index === 0);
               return (
                 <div
                   key={stage.label}
@@ -156,6 +171,8 @@ const PatientProfilePage: React.FC = () => {
                   <span className={`min-w-0 font-code-xs text-code-xs font-bold ${isCurrent ? 'text-error' : 'text-on-surface-variant'}`}>
                     {stage.label}
                     {isCurrent && <span className="block font-medium">CURRENT</span>}
+                    {isReach && lifecycle?.state === 'TIMEOUT' && <span className="block font-medium">TIMED OUT · SIMULATED</span>}
+                    {isReceive && lifecycle?.state === 'REACHED' && <span className="block font-medium">NEXT STEP</span>}
                   </span>
                 </div>
               );
@@ -218,12 +235,13 @@ const PatientProfilePage: React.FC = () => {
           <SectionHeader title="Current Referral" tag={referral.id} />
           <Card variant="default" padding="md" className="gap-space-sm">
             <div className="flex flex-wrap items-center gap-space-xs">
-              <ReferralStatusBadge
-                status={referral.handshake.arrivalAcknowledged ? 'ARRIVED' : 'AWAITING_ARRIVAL'}
+              <StatusBadge
+                label={`${getReferralLifecycleLabel(lifecycle?.state ?? 'REFERRED')} · SIMULATED`}
+                variant={lifecycle?.state === 'TIMEOUT' ? 'critical' : lifecycle?.state === 'REACHED' ? 'success' : lifecycle?.state === 'REACH_PENDING' ? 'warning' : 'primary'}
               />
               <StatusBadge
-                label={referral.handshake.arrivalAcknowledged ? 'REACH CONFIRMED' : 'REACH PENDING'}
-                variant={referral.handshake.arrivalAcknowledged ? 'success' : 'warning'}
+                label={lifecycle?.state === 'REACHED' ? 'ARRIVAL SIMULATED' : lifecycle?.state === 'TIMEOUT' ? 'MISSED ARRIVAL SIMULATED' : 'REACH PENDING'}
+                variant={lifecycle?.state === 'REACHED' ? 'success' : lifecycle?.state === 'TIMEOUT' ? 'critical' : 'warning'}
               />
             </div>
             <dl className="grid gap-space-sm sm:grid-cols-2">
@@ -248,7 +266,7 @@ const PatientProfilePage: React.FC = () => {
               <div>
                 <dt className="font-label-sm text-label-sm text-on-surface-variant">Current transit state</dt>
                 <dd className="font-body-sm text-body-sm text-on-surface">
-                  {referral.currentTransitStatus}
+                  {getReferralLifecycleLabel(lifecycle?.state ?? 'REFERRED')} · prototype state
                 </dd>
               </div>
             </dl>
@@ -319,20 +337,20 @@ const PatientProfilePage: React.FC = () => {
                 </div>
               </li>
             ))}
-            {currentMilestone && (
+            {lifecycle && (
               <li className="flex gap-space-sm border-l-2 border-error pl-space-sm">
                 <div className="min-w-0">
-                  <span className="font-code-xs text-code-xs text-on-surface-variant">Current state</span>
+                  <span className="font-code-xs text-code-xs text-on-surface-variant">Simulated referral state</span>
                   <p className="font-body-sm text-body-sm font-semibold text-error">
-                    {currentMilestone.label}
+                    {getReferralLifecycleLabel(lifecycle.state)}
                   </p>
                   <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    {referral?.currentTransitStatus}
+                    {getNextReferralStep(lifecycle.state)}
                   </p>
                 </div>
               </li>
             )}
-            {!timelineEvents.length && !currentMilestone && (
+            {!timelineEvents.length && !lifecycle && (
               <li className="font-body-sm text-body-sm text-on-surface-variant">
                 No care events are recorded for this synthetic beneficiary.
               </li>
@@ -349,7 +367,7 @@ const PatientProfilePage: React.FC = () => {
               Suggested follow-up
             </span>
             <p className="font-body-md text-body-md text-on-surface">
-              {referral ? 'Continue the referral and review the pending REACH state.' : 'Review the active care gap.'}
+              {referral ? `Review referral state: ${getReferralLifecycleLabel(lifecycle?.state ?? 'REFERRED')}. ${getNextReferralStep(lifecycle?.state ?? 'REFERRED')}` : 'Review the active care gap.'}
             </p>
           </div>
           <PrimaryButton

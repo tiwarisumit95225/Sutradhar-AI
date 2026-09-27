@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CareGapBadge, OfflineStatus, PatientIdentity, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
 import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../data/synthetic';
 import { evaluateCareGaps } from '../rules/careGapEngine';
+import { useShell } from '../context/ShellContext';
 import { ROUTE_PATHS } from './paths';
 
 const CareGapCenterPage: React.FC = () => {
   const navigate = useNavigate();
+  const shell = useShell();
   const results = evaluateCareGaps({
     beneficiaries: SYNTHETIC_BENEFICIARIES,
     careGaps: SYNTHETIC_CARE_GAPS,
     referrals: SYNTHETIC_REFERRALS,
+    referralLifecycle: shell.referralLifecycle,
   });
 
   return (

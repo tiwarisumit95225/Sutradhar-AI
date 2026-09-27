@@ -4,6 +4,21 @@
  */
 
 export type JourneyMilestone = 'SCREENED' | 'REFERRED' | 'REACH_PENDING' | 'RECEIVED' | 'CLOSED';
+export type ReferralLifecycleState = 'REFERRED' | 'REACH_PENDING' | 'REACHED' | 'TIMEOUT';
+
+export interface ReferralLifecycleEvent {
+  id: string;
+  state: ReferralLifecycleState;
+  detail: string;
+  source: 'SYNTHETIC_RECORD' | 'SIMULATION';
+  /** Only populated when the existing synthetic record provides a timestamp. */
+  timestamp?: string;
+}
+
+export interface ReferralLifecycleSnapshot {
+  state: ReferralLifecycleState;
+  history: ReferralLifecycleEvent[];
+}
 
 export interface MilestoneProgress {
   milestone: JourneyMilestone;
@@ -36,4 +51,6 @@ export interface ReferralRecord {
   currentTransitStatus: string;
   etaMinutes: number;
   remainingKm: number;
+  /** Optional during migration; derived from existing milestone/handshake fields when absent. */
+  lifecycleState?: ReferralLifecycleState;
 }

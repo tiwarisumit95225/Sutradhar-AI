@@ -1,15 +1,17 @@
-import type { Beneficiary, CareGap, ReferralRecord, TimelineEvent } from '../types';
+import type { Beneficiary, CareGap, ReferralLifecycleSnapshot, ReferralRecord, TimelineEvent } from '../types';
 import { hasExplicitExpiryEvidence, isUnresolvedCareGap } from './careGapRules';
 import type { CareGapReasonCode } from './careGapRules';
+import { createInitialReferralSnapshot } from './referralLifecycle';
 
 export interface CareGapEngineInput {
   beneficiaries: Beneficiary[];
   careGaps: CareGap[];
   referrals: ReferralRecord[];
+  referralLifecycle?: Record<string, ReferralLifecycleSnapshot>;
 }
 
 export interface CareGapEvidence {
-  sourceType: 'CARE_GAP' | 'REFERRAL' | 'SCREENING_EVENT';
+  sourceType: 'CARE_GAP' | 'REFERRAL' | 'REFERRAL_LIFECYCLE' | 'SCREENING_EVENT';
   sourceId: string;
   label: string;
   detail: string;
@@ -50,7 +52,7 @@ const screeningEvidence = (gap: CareGap | undefined): TimelineEvent[] =>
   gap?.explanation.evidenceTrail.filter((event) => event.statusType === 'SCREENING') ?? [];
 
 /** Deterministic operational rules using only supplied synthetic records. */
-export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals }: CareGapEngineInput): CareGapEngineResult[] => {
+export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals, referralLifecycle = {} }: CareGapEngineInput): CareGapEngineResult[] => {
   const results: CareGapEngineResult[] = [];
   const knownIds = new Set(beneficiaries.map((beneficiary) => beneficiary.id));
 
@@ -67,12 +69,30 @@ export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals }: CareGap
       }
     }
 
-    const referralExpired = Boolean(referral && !referral.handshake.arrivalAcknowledged && hasExplicitExpiryEvidence(gap));
+    const lifecycle = referral
+      ? referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral)
+      : undefined;
+    const referralState = lifecycle?.state;
+    const arrivalReached = Boolean(referral && (referralState === 'REACHED' || (referralState !== 'TIMEOUT' && referral.handshake.arrivalAcknowledged)));
+    const timeoutEvent = lifecycle?.history.find((event) => event.state === 'TIMEOUT' && event.source === 'SIMULATION');
+    const timeoutEvidenceExists = Boolean(timeoutEvent && referralState === 'TIMEOUT');
+    const referralExpired = Boolean(referral && !arrivalReached && (timeoutEvidenceExists || hasExplicitExpiryEvidence(gap)));
     if (referral) {
-      gapEvidence.push({ sourceType: 'REFERRAL', sourceId: referral.id, label: `Referral ${referral.id}`, detail: `${referral.currentTransitStatus}; arrival ${referral.handshake.arrivalAcknowledged ? 'acknowledged' : 'not acknowledged'}.` });
+      gapEvidence.push({
+        sourceType: 'REFERRAL',
+        sourceId: referral.id,
+        label: `Referral ${referral.id}`,
+        detail: `Lifecycle state ${referralState ?? 'REFERRED'}; ${arrivalReached ? 'arrival is represented as reached' : 'arrival is not reached'}.`,
+      });
+      lifecycle?.history.forEach((event) => gapEvidence.push({
+        sourceType: 'REFERRAL_LIFECYCLE',
+        sourceId: event.id,
+        label: `${event.state}${event.timestamp ? ` · ${event.timestamp}` : ''}`,
+        detail: event.detail,
+      }));
     }
-    const confirmed = hasExplicitExpiryEvidence(gap);
-    const reachExpected = referral && !referral.handshake.arrivalAcknowledged && (referralExpired || /reach|arrival|handshake/i.test(`${gap.title} ${gap.subType}`));
+    const confirmed = hasExplicitExpiryEvidence(gap) || timeoutEvidenceExists;
+    const reachExpected = referral && !arrivalReached && (timeoutEvidenceExists || referralExpired || /reach|arrival|handshake/i.test(`${gap.title} ${gap.subType}`));
 
     results.push({
       id: gap.id,
@@ -80,59 +100,89 @@ export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals }: CareGap
       careGap: gap,
       referral,
       expectedStep: reachExpected ? 'REACH — patient reaches referred facility' : gap.title,
-      actualState: reachExpected
-        ? 'Arrival acknowledgement is missing.'
-        : `Existing gap remains ${gap.status.toLowerCase()}.`,
+      actualState: timeoutEvidenceExists
+        ? 'Referral timed out before arrival was confirmed.'
+        : arrivalReached
+          ? 'Arrival is recorded as simulated for this prototype session; the care gap itself remains unresolved.'
+          : reachExpected
+            ? 'Arrival acknowledgement is missing.'
+            : `Existing gap remains ${gap.status.toLowerCase()}.`,
       timeStateCondition: confirmed
-        ? `Explicit expiry/breach evidence is recorded (${gap.breachWindowHours} breach-window hours).`
+        ? timeoutEvidenceExists
+          ? 'A simulated referral timeout event is present in the lifecycle history.'
+          : `Explicit expiry/breach evidence is recorded (${gap.breachWindowHours} breach-window hours).`
         : 'An unresolved gap is recorded, but no explicit expiry is present.',
       result: 'CARE_GAP',
       status: confirmed ? 'CONFIRMED' : 'PROBABLE / UNCONFIRMED',
       priority: beneficiary.urgencyTier,
       confidence: confirmed ? 'EVIDENCE CONFIRMED' : 'UNCONFIRMED SIGNAL',
       reasonCode: reachExpected ? 'REFERRAL_ARRIVAL_NOT_CONFIRMED' : 'EXPECTED_STEP_MISSING',
-      explanation: reachExpected
+      explanation: timeoutEvidenceExists
+        ? 'The lifecycle records a simulated referral timeout before arrival. This is operational demo evidence, not a live facility acknowledgement.'
+        : reachExpected
         ? confirmed
           ? 'The linked referral has no arrival acknowledgement and its evidence trail records an expired arrival window.'
           : 'The linked referral has no arrival acknowledgement; the records do not establish that its expected window has expired.'
         : `${gap.explanation.detectedSignal} ${confirmed ? 'The source record marks the expected care step as breached.' : 'The recorded source gap is unresolved, but breach is not explicitly confirmed.'}`,
-      ...(referral && !referral.handshake.arrivalAcknowledged ? {
+      ...(referral && !arrivalReached && referralState === 'REACH_PENDING' ? {
         predictedStep: 'REACH — patient reaches referred facility',
         riskLevel: confirmed ? 'HIGH' as const : 'MODERATE' as const,
         predictionReason: confirmed
           ? 'Arrival remains unacknowledged after the source gap recorded an expired window.'
           : `Arrival is still pending while the referral reports ${referral.currentTransitStatus.toLowerCase()} (ETA ${referral.etaMinutes} minutes).`,
       } : {}),
-      suggestedAction: gap.recommendedAction,
+      suggestedAction: arrivalReached
+        ? 'Human review: simulated arrival does not confirm care received; review the still-open source care gap.'
+        : timeoutEvidenceExists
+          ? 'Human review: review the timed-out referral and resulting operational care gap.'
+          : gap.recommendedAction,
       evidence: gapEvidence,
     });
   }
 
-  // A pending referral with an explicit ETA supports a probable risk signal, not a confirmed failure.
+  // Unresolved referrals without a source care-gap record still surface from lifecycle evidence.
   for (const referral of referrals) {
-    if (!knownIds.has(referral.beneficiaryId) || referral.handshake.arrivalAcknowledged) continue;
+    if (!knownIds.has(referral.beneficiaryId)) continue;
+    const lifecycle = referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral);
+    const timeoutEvent = lifecycle.history.find((event) => event.state === 'TIMEOUT' && event.source === 'SIMULATION');
+    const timeoutEvidenceExists = lifecycle.state === 'TIMEOUT' && Boolean(timeoutEvent);
+    const arrivalReached = lifecycle.state === 'REACHED' || (lifecycle.state !== 'TIMEOUT' && referral.handshake.arrivalAcknowledged);
+    if (arrivalReached || (!timeoutEvidenceExists && referral.handshake.arrivalAcknowledged)) continue;
     const beneficiary = beneficiaries.find((item) => item.id === referral.beneficiaryId);
     if (!beneficiary) continue;
     const existing = results.find((item) => item.beneficiary.id === beneficiary.id && item.referral?.id === referral.id);
     if (existing) continue;
     results.push({
-      id: `PRED-${referral.id}`,
+      id: timeoutEvidenceExists ? `TIMEOUT-${referral.id}` : `PRED-${referral.id}`,
       beneficiary,
       referral,
       expectedStep: 'REACH — patient reaches referred facility',
-      actualState: 'Arrival acknowledgement is missing.',
-      timeStateCondition: `Referral is still in the represented transit state; ETA ${referral.etaMinutes} minutes. No expired window is recorded.`,
-      result: 'AT_RISK',
-      status: 'PROBABLE / UNCONFIRMED',
+      actualState: timeoutEvidenceExists
+        ? 'Referral timed out before arrival was confirmed.'
+        : 'Arrival acknowledgement is missing.',
+      timeStateCondition: timeoutEvidenceExists
+        ? 'A simulated timeout event is present in the lifecycle history.'
+        : `Referral is still in the represented transit state; ETA ${referral.etaMinutes} minutes. No expired window is recorded.`,
+      result: timeoutEvidenceExists ? 'CARE_GAP' : 'AT_RISK',
+      status: timeoutEvidenceExists ? 'CONFIRMED' : 'PROBABLE / UNCONFIRMED',
       priority: beneficiary.urgencyTier,
-      confidence: 'UNCONFIRMED SIGNAL',
-      reasonCode: 'REFERRAL_TIMEOUT_RISK',
-      explanation: `The referral remains unacknowledged while its recorded transit state is “${referral.currentTransitStatus}”; no expiry evidence confirms a missed arrival.`,
-      predictedStep: 'REACH — patient reaches referred facility',
-      riskLevel: 'MODERATE',
-      predictionReason: `The referral has a pending arrival acknowledgement and a recorded ETA of ${referral.etaMinutes} minutes.`,
-      suggestedAction: 'Human review: check the referral arrival status when the expected transit window passes.',
-      evidence: [{ sourceType: 'REFERRAL', sourceId: referral.id, label: `Referral ${referral.id}`, detail: `${referral.currentTransitStatus}; ETA ${referral.etaMinutes} minutes; arrival not acknowledged.` }],
+      confidence: timeoutEvidenceExists ? 'EVIDENCE CONFIRMED' : 'UNCONFIRMED SIGNAL',
+      reasonCode: timeoutEvidenceExists ? 'REFERRAL_ARRIVAL_NOT_CONFIRMED' : 'REFERRAL_TIMEOUT_RISK',
+      explanation: timeoutEvidenceExists
+        ? 'The referral timed out before arrival was confirmed, based on an explicit simulated lifecycle event.'
+        : `The referral remains unacknowledged while its recorded transit state is “${referral.currentTransitStatus}”; no lifecycle timeout event is recorded.`,
+      ...(!timeoutEvidenceExists ? {
+        predictedStep: 'REACH — patient reaches referred facility',
+        riskLevel: 'MODERATE' as const,
+        predictionReason: `The referral has a pending arrival acknowledgement and a recorded ETA of ${referral.etaMinutes} minutes.`,
+      } : {}),
+      suggestedAction: timeoutEvidenceExists
+        ? 'Human review: review the timed-out referral and resulting operational care gap.'
+        : 'Human review: check the referral arrival status when the expected transit window passes.',
+      evidence: [
+        { sourceType: 'REFERRAL', sourceId: referral.id, label: `Referral ${referral.id}`, detail: `${referral.currentTransitStatus}; lifecycle state ${lifecycle.state}.` },
+        ...lifecycle.history.map((event) => ({ sourceType: 'REFERRAL_LIFECYCLE' as const, sourceId: event.id, label: event.state, detail: event.detail })),
+      ],
     });
   }
 

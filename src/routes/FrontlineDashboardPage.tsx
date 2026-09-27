@@ -6,7 +6,6 @@ import {
   OfflineStatus,
   PatientIdentity,
   PrimaryButton,
-  ReferralStatusBadge,
   SectionHeader,
   SecondaryButton,
   StatusBadge,
@@ -20,6 +19,7 @@ import {
   SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
 import { DEMO_PATIENT_ID, ROUTE_PATHS } from './paths';
+import { createInitialReferralSnapshot, getReferralLifecycleLabel } from '../rules/referralLifecycle';
 
 const JOURNEY_STAGES = [
   { label: 'SCREEN', milestone: 'SCREENED' },
@@ -47,6 +47,9 @@ const FrontlineDashboardPage: React.FC = () => {
   const destinationFacility = sunitaReferral
     ? getFacilityById(sunitaReferral.destinationFacilityId)
     : undefined;
+  const referralLifecycle = sunitaReferral
+    ? shell.referralLifecycle[sunitaReferral.id] ?? createInitialReferralSnapshot(sunitaReferral)
+    : undefined;
   const followUpMetric = SYNTHETIC_METRICS.find(
     (metric) => metric.id === 'field-followups'
   );
@@ -57,7 +60,10 @@ const FrontlineDashboardPage: React.FC = () => {
     (careGap) => careGap.status === 'EXPIRED'
   ).length;
   const awaitingArrivalCount = SYNTHETIC_REFERRALS.filter(
-    (referral) => !referral.handshake.arrivalAcknowledged
+    (referral) => {
+      const state = shell.referralLifecycle[referral.id]?.state ?? createInitialReferralSnapshot(referral).state;
+      return state === 'REFERRED' || state === 'REACH_PENDING';
+    }
   ).length;
   const closurePendingCount = SYNTHETIC_REFERRALS.filter(
     (referral) => !referral.milestones.some(
@@ -89,7 +95,7 @@ const FrontlineDashboardPage: React.FC = () => {
       count: awaitingArrivalCount,
       icon: 'local_hospital',
       variant: 'default' as const,
-      status: 'IN TRANSIT',
+      status: 'AWAITING REACH',
       statusVariant: 'primary' as const,
       to: ROUTE_PATHS.frontlineReferral(sunitaReferral?.id ?? ''),
     },
@@ -199,8 +205,9 @@ const FrontlineDashboardPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-space-xs border-y border-outline-variant/30 py-space-sm">
             <StatusBadge label="CARE GAP ACTIVE" variant="critical" icon="warning" />
             {sunitaReferral && (
-              <ReferralStatusBadge
-                status={sunitaReferral.handshake.arrivalAcknowledged ? 'ARRIVED' : 'AWAITING_ARRIVAL'}
+              <StatusBadge
+                label={`${getReferralLifecycleLabel(referralLifecycle?.state ?? 'REFERRED')} · SIMULATED`}
+                variant={referralLifecycle?.state === 'TIMEOUT' ? 'critical' : referralLifecycle?.state === 'REACHED' ? 'success' : 'warning'}
               />
             )}
             <StatusBadge label={sunita.urgencyTier} variant="critical" />
@@ -283,7 +290,7 @@ const FrontlineDashboardPage: React.FC = () => {
       <section aria-label="Care journey">
         <SectionHeader
           title="Care Journey"
-          subtitle="Referral progress is awaiting arrival confirmation"
+          subtitle={`Referral progress · ${getReferralLifecycleLabel(referralLifecycle?.state ?? 'REFERRED')} simulated state`}
           tag="SCREEN → CLOSURE"
         />
         <Card variant="default" padding="md">
@@ -292,26 +299,34 @@ const FrontlineDashboardPage: React.FC = () => {
               const milestone = sunitaReferral?.milestones.find(
                 (item) => item.milestone === stage.milestone
               );
-              const isPendingArrival = stage.milestone === 'REACH_PENDING' && milestone?.active;
-              const isComplete = milestone?.completed ?? false;
+              const isReach = stage.milestone === 'REACH_PENDING';
+              const isReceive = stage.milestone === 'RECEIVED';
+              const isPendingArrival = isReach && referralLifecycle?.state === 'REACH_PENDING';
+              const isTimedOut = isReach && referralLifecycle?.state === 'TIMEOUT';
+              const isComplete = isReach
+                ? referralLifecycle?.state === 'REACHED'
+                : milestone?.completed ?? false;
+              const isCurrent = isPendingArrival || isTimedOut || (isReceive && referralLifecycle?.state === 'REACHED');
               return (
                 <div
                   key={stage.label}
                   className="flex min-w-0 items-center gap-space-xs"
-                  aria-current={isPendingArrival ? 'step' : undefined}
+                  aria-current={isCurrent ? 'step' : undefined}
                 >
                   <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-code-xs text-code-xs font-bold ${
                     isComplete
                       ? 'bg-tertiary text-on-tertiary'
-                      : isPendingArrival
+                      : isPendingArrival || isTimedOut
                         ? 'bg-error-container text-on-error-container'
                         : 'bg-surface-container-high text-on-surface-variant'
                   }`}>
                     {isComplete ? '✓' : index + 1}
                   </span>
-                  <span className={`min-w-0 font-code-xs text-code-xs font-bold ${isPendingArrival ? 'text-error' : 'text-on-surface-variant'}`}>
+                  <span className={`min-w-0 font-code-xs text-code-xs font-bold ${isCurrent ? 'text-error' : 'text-on-surface-variant'}`}>
                     {stage.label}
                     {isPendingArrival && <span className="block font-medium">PENDING</span>}
+                    {isTimedOut && <span className="block font-medium">TIMED OUT · SIMULATED</span>}
+                    {isReceive && referralLifecycle?.state === 'REACHED' && <span className="block font-medium">NEXT</span>}
                   </span>
                 </div>
               );
@@ -322,7 +337,10 @@ const FrontlineDashboardPage: React.FC = () => {
               <span className="font-code-xs text-code-xs text-on-surface-variant">
                 {sunitaReferral.id} · {destinationFacility?.name}
               </span>
-              <ReferralStatusBadge status={sunitaReferral.handshake.arrivalAcknowledged ? 'ARRIVED' : 'AWAITING_ARRIVAL'} />
+              <StatusBadge
+                label={`${getReferralLifecycleLabel(referralLifecycle?.state ?? 'REFERRED')} · SIMULATED`}
+                variant={referralLifecycle?.state === 'TIMEOUT' ? 'critical' : referralLifecycle?.state === 'REACHED' ? 'success' : 'warning'}
+              />
             </div>
           )}
         </Card>
