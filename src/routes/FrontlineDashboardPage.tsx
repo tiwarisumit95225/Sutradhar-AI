@@ -15,7 +15,7 @@ import { useShell } from '../context/ShellContext';
 import {
   SYNTHETIC_BENEFICIARIES,
   SYNTHETIC_CARE_GAPS,
-  SYNTHETIC_FACILITIES,
+  getFacilityById,
   SYNTHETIC_METRICS,
   SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
@@ -44,9 +44,9 @@ const FrontlineDashboardPage: React.FC = () => {
   const sunitaReferral = SYNTHETIC_REFERRALS.find(
     (referral) => referral.beneficiaryId === sunita.id
   );
-  const destinationFacility = SYNTHETIC_FACILITIES.find(
-    (facility) => facility.id === sunitaReferral?.destinationFacilityId
-  );
+  const destinationFacility = sunitaReferral
+    ? getFacilityById(sunitaReferral.destinationFacilityId)
+    : undefined;
   const followUpMetric = SYNTHETIC_METRICS.find(
     (metric) => metric.id === 'field-followups'
   );

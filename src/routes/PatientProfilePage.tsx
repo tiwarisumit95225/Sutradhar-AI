@@ -14,7 +14,7 @@ import {
 import {
   SYNTHETIC_BENEFICIARIES,
   SYNTHETIC_CARE_GAPS,
-  SYNTHETIC_FACILITIES,
+  getFacilityById,
   SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
 import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
@@ -78,9 +78,7 @@ const PatientProfilePage: React.FC = () => {
   const referral = SYNTHETIC_REFERRALS.find(
     (record) => record.beneficiaryId === patient.id
   );
-  const facility = SYNTHETIC_FACILITIES.find(
-    (item) => item.id === referral?.destinationFacilityId
-  );
+  const facility = referral ? getFacilityById(referral.destinationFacilityId) : undefined;
   const currentMilestone = referral?.milestones.find((milestone) => milestone.active);
   const referredAt = referral?.milestones.find(
     (milestone) => milestone.milestone === 'REFERRED'

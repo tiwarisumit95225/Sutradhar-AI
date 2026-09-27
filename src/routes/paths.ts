@@ -10,6 +10,7 @@ export const ROUTE_PATHS = {
   frontlineScreening: (patientId: string) =>
     `/frontline/screening/${encodeURIComponent(patientId)}`,
   frontlineCareGaps: '/frontline/care-gaps',
+  frontlineFacilities: '/frontline/facilities',
   frontlineReferral: (referralId: string) =>
     `/frontline/referral/${encodeURIComponent(referralId)}`,
   frontlineClosure: (patientId: string) =>

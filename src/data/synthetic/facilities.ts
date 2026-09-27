@@ -12,6 +12,9 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     estimatedTransitMinutes: 5,
     roadCondition: 'Village Pacca Lane',
     isRecommended: false,
+    availability: 'AVAILABLE',
+    stockConfidence: 'MEDIUM',
+    availableServices: ['Blood pressure screening', 'Rapid diagnostic testing'],
     specialistsOnDuty: ['Meena Bai (ASHA)', 'Kavita Sharma (ANM)'],
     diagnosticStock: [
       { itemName: 'Rapid Diagnostic Strips', isAvailable: true },
@@ -27,6 +30,9 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     estimatedTransitMinutes: 18,
     roadCondition: 'Rural Arterial Road (Fair)',
     isRecommended: false,
+    availability: 'LIMITED',
+    stockConfidence: 'LOW',
+    availableServices: ['General OPD', 'Blood pressure screening'],
     warningAlert: 'CBC No Reagents • Magnesium Sulfate Out of Stock',
     specialistsOnDuty: ['Medical Officer (General OPD)'],
     diagnosticStock: [
@@ -38,12 +44,15 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
   },
   {
     id: 'chc-bikrampur',
-    name: 'CHC B Bikrampur',
+    name: 'CHC Bikrampur',
     facilityType: 'CHC',
     distanceKm: 12.4,
     estimatedTransitMinutes: 35,
     roadCondition: 'Dry Metalled Highway Corridor',
     isRecommended: true,
+    availability: 'AVAILABLE',
+    stockConfidence: 'HIGH',
+    availableServices: ['Emergency obstetric care', 'Ultrasound'],
     recommendationReason: 'Active Emergency Obstetric Care • MgSO4 In Stock • Sonologist on Duty',
     specialistsOnDuty: [
       'Dr. Arvind Swaminathan (MO In-Charge)',
@@ -65,6 +74,9 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     estimatedTransitMinutes: 75,
     roadCondition: 'State Highway',
     isRecommended: false,
+    availability: 'AVAILABLE',
+    stockConfidence: 'MEDIUM',
+    availableServices: ['Tertiary care', 'Blood bank'],
     recommendationReason: 'Tertiary Care Backup (High Travel Burden)',
     specialistsOnDuty: ['Full Multi-Specialty Department'],
     diagnosticStock: [
@@ -74,3 +86,21 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     coordinates: { x: 320, y: 50 },
   },
 ];
+
+/** Deterministic local accessors for synthetic facility records. */
+export const getFacilities = (): HealthcareFacility[] => SYNTHETIC_FACILITIES;
+
+export const getFacilityById = (id: string): HealthcareFacility | undefined =>
+  SYNTHETIC_FACILITIES.find((facility) => facility.id === id);
+
+export const getFacilitiesByService = (service: string): HealthcareFacility[] => {
+  const normalizedService = service.trim().toLocaleLowerCase();
+  if (!normalizedService) return [];
+  return SYNTHETIC_FACILITIES.filter((facility) =>
+    facility.availableServices.some((availableService) =>
+      availableService.toLocaleLowerCase().includes(normalizedService)
+    ) || facility.diagnosticStock.some((item) =>
+      item.itemName.toLocaleLowerCase().includes(normalizedService) && item.isAvailable
+    )
+  );
+};
