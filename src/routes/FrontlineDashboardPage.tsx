@@ -19,7 +19,8 @@ import {
   SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
 import { DEMO_PATIENT_ID, ROUTE_PATHS } from './paths';
-import { createInitialReferralSnapshot, getReferralLifecycleLabel } from '../rules/referralLifecycle';
+import { createInitialReferralSnapshot, getClosureEvidence, getReferralLifecycleLabel, isJourneyMilestoneComplete } from '../rules/referralLifecycle';
+import { evaluateCareGaps } from '../rules/careGapEngine';
 
 const JOURNEY_STAGES = [
   { label: 'SCREEN', milestone: 'SCREENED' },
@@ -38,9 +39,8 @@ const FrontlineDashboardPage: React.FC = () => {
 
   if (!sunita) return null;
 
-  const sunitaCareGaps = SYNTHETIC_CARE_GAPS.filter(
-    (careGap) => careGap.beneficiaryId === sunita.id && careGap.status !== 'CLOSED'
-  );
+  const careGapResults = evaluateCareGaps({ beneficiaries: SYNTHETIC_BENEFICIARIES, careGaps: SYNTHETIC_CARE_GAPS, referrals: SYNTHETIC_REFERRALS, referralLifecycle: shell.referralLifecycle });
+  const sunitaCareGaps = careGapResults.filter((result) => result.beneficiary.id === sunita.id);
   const sunitaReferral = SYNTHETIC_REFERRALS.find(
     (referral) => referral.beneficiaryId === sunita.id
   );
@@ -53,12 +53,7 @@ const FrontlineDashboardPage: React.FC = () => {
   const followUpMetric = SYNTHETIC_METRICS.find(
     (metric) => metric.id === 'field-followups'
   );
-  const activeReferralMetric = SYNTHETIC_METRICS.find(
-    (metric) => metric.id === 'active-referrals'
-  );
-  const criticalGapCount = sunitaCareGaps.filter(
-    (careGap) => careGap.status === 'EXPIRED'
-  ).length;
+  const criticalGapCount = sunitaCareGaps.filter((result) => result.status === 'CONFIRMED').length;
   const awaitingArrivalCount = SYNTHETIC_REFERRALS.filter(
     (referral) => {
       const state = shell.referralLifecycle[referral.id]?.state ?? createInitialReferralSnapshot(referral).state;
@@ -66,10 +61,9 @@ const FrontlineDashboardPage: React.FC = () => {
     }
   ).length;
   const closurePendingCount = SYNTHETIC_REFERRALS.filter(
-    (referral) => !referral.milestones.some(
-      (milestone) => milestone.milestone === 'CLOSED' && milestone.completed
-    )
+    (referral) => shell.referralLifecycle[referral.id]?.state === 'CARE_RECEIVED'
   ).length;
+  const closureEvidence = sunitaReferral && referralLifecycle ? getClosureEvidence(referralLifecycle, sunitaReferral.id) : undefined;
 
   const metrics = [
     {
@@ -106,11 +100,14 @@ const FrontlineDashboardPage: React.FC = () => {
       variant: 'default' as const,
       status: 'PENDING',
       statusVariant: 'neutral' as const,
-      to: ROUTE_PATHS.frontlineClosure(sunita.id),
+      to: ROUTE_PATHS.frontlineReferral(sunitaReferral?.id ?? ''),
     },
     {
       label: 'Active referrals',
-      count: activeReferralMetric?.count ?? SYNTHETIC_REFERRALS.length,
+      count: SYNTHETIC_REFERRALS.filter((referral) => {
+        const state = shell.referralLifecycle[referral.id]?.state ?? createInitialReferralSnapshot(referral).state;
+        return state !== 'CLOSED' && state !== 'TIMEOUT';
+      }).length,
       icon: 'forward_media',
       variant: 'default' as const,
       status: 'TRACKING',
@@ -199,15 +196,15 @@ const FrontlineDashboardPage: React.FC = () => {
               village={sunita.village}
               assignedAshaName={sunita.assignedAshaName}
             />
-            <CareGapBadge label="PRIORITY FOLLOW-UP" isExpired={sunitaCareGaps.some((gap) => gap.status === 'EXPIRED')} />
+            <CareGapBadge label={sunitaCareGaps.length ? 'PRIORITY FOLLOW-UP' : 'EXPECTED STEP RECORDED'} isExpired={sunitaCareGaps.some((gap) => gap.status === 'CONFIRMED')} />
           </div>
 
           <div className="flex flex-wrap items-center gap-space-xs border-y border-outline-variant/30 py-space-sm">
-            <StatusBadge label="CARE GAP ACTIVE" variant="critical" icon="warning" />
+            <StatusBadge label={sunitaCareGaps.length ? 'CARE GAP ACTIVE' : referralLifecycle?.state === 'CLOSED' ? 'CLOSURE CONFIRMED' : 'EXPECTED STEP RECORDED'} variant={sunitaCareGaps.length ? 'critical' : 'success'} icon={sunitaCareGaps.length ? 'warning' : 'task_alt'} />
             {sunitaReferral && (
               <StatusBadge
                 label={`${getReferralLifecycleLabel(referralLifecycle?.state ?? 'REFERRED')} · SIMULATED`}
-                variant={referralLifecycle?.state === 'TIMEOUT' ? 'critical' : referralLifecycle?.state === 'REACHED' ? 'success' : 'warning'}
+                variant={referralLifecycle?.state === 'TIMEOUT' ? 'critical' : referralLifecycle?.state === 'REACHED' || referralLifecycle?.state === 'CARE_RECEIVED' || referralLifecycle?.state === 'CLOSED' ? 'success' : 'warning'}
               />
             )}
             <StatusBadge label={sunita.urgencyTier} variant="critical" />
@@ -217,7 +214,7 @@ const FrontlineDashboardPage: React.FC = () => {
             <div>
               <span className="font-label-sm text-label-sm text-on-surface-variant">Active care gap</span>
               <p className="font-body-sm text-body-sm font-semibold text-on-surface">
-                {sunitaCareGaps[0]?.title ?? 'No open care gap'}
+                {sunitaCareGaps[0]?.careGap?.title ?? 'No active engine-supported care gap'}
               </p>
             </div>
             <div>
@@ -304,9 +301,13 @@ const FrontlineDashboardPage: React.FC = () => {
               const isPendingArrival = isReach && referralLifecycle?.state === 'REACH_PENDING';
               const isTimedOut = isReach && referralLifecycle?.state === 'TIMEOUT';
               const isComplete = isReach
-                ? referralLifecycle?.state === 'REACHED'
-                : milestone?.completed ?? false;
-              const isCurrent = isPendingArrival || isTimedOut || (isReceive && referralLifecycle?.state === 'REACHED');
+                ? Boolean(referralLifecycle && isJourneyMilestoneComplete(referralLifecycle.state, 'REACH_PENDING'))
+                : isReceive
+                  ? Boolean(referralLifecycle && isJourneyMilestoneComplete(referralLifecycle.state, 'RECEIVED'))
+                  : stage.milestone === 'CLOSED'
+                    ? Boolean(referralLifecycle && isJourneyMilestoneComplete(referralLifecycle.state, 'CLOSED'))
+                    : milestone?.completed ?? false;
+              const isCurrent = isPendingArrival || isTimedOut || (isReceive && referralLifecycle?.state === 'REACHED') || (stage.milestone === 'CLOSED' && referralLifecycle?.state === 'CARE_RECEIVED');
               return (
                 <div
                   key={stage.label}
@@ -327,6 +328,9 @@ const FrontlineDashboardPage: React.FC = () => {
                     {isPendingArrival && <span className="block font-medium">PENDING</span>}
                     {isTimedOut && <span className="block font-medium">TIMED OUT · SIMULATED</span>}
                     {isReceive && referralLifecycle?.state === 'REACHED' && <span className="block font-medium">NEXT</span>}
+                    {isReceive && referralLifecycle?.state === 'CARE_RECEIVED' && <span className="block font-medium">SIMULATED</span>}
+                    {stage.milestone === 'CLOSED' && referralLifecycle?.state === 'CARE_RECEIVED' && <span className="block font-medium">NEXT</span>}
+                    {stage.milestone === 'CLOSED' && referralLifecycle?.state === 'CLOSED' && <span className="block font-medium">CONFIRMED</span>}
                   </span>
                 </div>
               );
@@ -339,10 +343,12 @@ const FrontlineDashboardPage: React.FC = () => {
               </span>
               <StatusBadge
                 label={`${getReferralLifecycleLabel(referralLifecycle?.state ?? 'REFERRED')} · SIMULATED`}
-                variant={referralLifecycle?.state === 'TIMEOUT' ? 'critical' : referralLifecycle?.state === 'REACHED' ? 'success' : 'warning'}
+                variant={referralLifecycle?.state === 'TIMEOUT' ? 'critical' : referralLifecycle?.state === 'REACHED' || referralLifecycle?.state === 'CARE_RECEIVED' || referralLifecycle?.state === 'CLOSED' ? 'success' : 'warning'}
               />
             </div>
           )}
+          {referralLifecycle?.state === 'CLOSED' && closureEvidence && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-body-sm text-on-tertiary-fixed-variant">CLOSURE CONFIRMED · SIMULATED. Evidence recorded for expected care step: {closureEvidence.expectedStep}. This does not represent a clinical outcome.</p>}
+          {referralLifecycle?.state === 'CARE_RECEIVED' && <p role="status" className="mt-space-sm rounded-lg bg-surface-container-low p-space-sm font-body-sm text-body-sm text-on-surface">CARE RECEIVED · SIMULATED. Closure is the next facility step.</p>}
         </Card>
       </section>
 

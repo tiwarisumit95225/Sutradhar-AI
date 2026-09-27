@@ -54,7 +54,14 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const referral = SYNTHETIC_REFERRALS.find((item) => item.id === referralId);
     if (!referral) return undefined;
     const current = referralLifecycle[referralId] ?? createInitialReferralSnapshot(referral);
-    const result = transitionReferralLifecycle(current, nextState);
+    const result = transitionReferralLifecycle(
+      current,
+      nextState,
+      nextState === 'CARE_RECEIVED' || nextState === 'CLOSED' ? 'FACILITY_SIMULATION' : 'SIMULATION',
+      nextState === 'CARE_RECEIVED' || nextState === 'CLOSED'
+        ? { referralId: referral.id, patientId: referral.beneficiaryId, expectedStep: referral.clinicalIndication }
+        : undefined
+    );
     if (result.ok) {
       setReferralLifecycle((previous) => ({ ...previous, [referralId]: result.snapshot }));
     }

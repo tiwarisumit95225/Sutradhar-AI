@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { PrimaryButton } from '../common';
 import { useShell } from '../../context/ShellContext';
-import type { ReferralRecord } from '../../types';
+import type { ReferralLifecycleState, ReferralRecord } from '../../types';
 
 interface HandshakeVerificationFormProps {
   referral: ReferralRecord;
-  lifecycleState: 'REFERRED' | 'REACH_PENDING' | 'REACHED' | 'TIMEOUT';
+  lifecycleState: ReferralLifecycleState;
   compact?: boolean;
 }
 
@@ -32,7 +32,9 @@ const HandshakeVerificationForm: React.FC<HandshakeVerificationFormProps> = ({ r
           ? 'The demo referral ID or passcode did not match. Referral state was not changed.'
           : result.reason === 'REACH_PENDING_REQUIRED'
             ? 'Verification is available after the referral enters REACH PENDING.'
-            : 'This referral timed out. The lifecycle cannot return to REACHED.';
+            : result.reason === 'REFERRAL_TIMED_OUT'
+              ? 'This referral timed out. The lifecycle cannot return to REACHED.'
+              : 'This referral has advanced beyond REACH. Handshake verification is closed.';
       setError(message);
       shell.showToast('Verification failed', message, 'alert');
       return;
@@ -47,7 +49,8 @@ const HandshakeVerificationForm: React.FC<HandshakeVerificationFormProps> = ({ r
     );
   };
 
-  if (lifecycleState === 'TIMEOUT' || (lifecycleState === 'REACHED' && referral.handshake.arrivalAcknowledged)) return null;
+  if (lifecycleState === 'TIMEOUT' || lifecycleState === 'CARE_RECEIVED' || lifecycleState === 'CLOSED'
+    || (lifecycleState === 'REACHED' && referral.handshake.arrivalAcknowledged)) return null;
 
   return (
     <form className={compact ? 'flex flex-col gap-space-xs' : 'border-t border-outline-variant/30 pt-space-sm'} onSubmit={handleSubmit}>

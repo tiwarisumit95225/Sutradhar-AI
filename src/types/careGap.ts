@@ -32,6 +32,8 @@ export interface OperationalExplanation {
 export interface CareGap {
   id: string; // e.g. "GAP-2026-081"
   beneficiaryId: string;
+  /** Links this expected care-step gap to the referral whose evidence can resolve it. */
+  expectedReferralId?: string;
   title: string;
   subType: string;
   status: CareGapStatus;

@@ -21,6 +21,7 @@ const CareGapCenterPage: React.FC = () => {
       <OfflineStatus />
       <section>
         <SectionHeader title="Care Gap Center" subtitle="DETECT → PREDICT → EXPLAIN · Operational review, synthetic data only" tag={`${results.length} FLAGS`} />
+        <h1 className="mb-space-xs font-headline-md text-headline-md font-bold text-on-surface">Care Gap Center</h1>
         {results.length === 0 ? (
           <Card variant="success" padding="md">
             <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">No supported care gaps</h2>

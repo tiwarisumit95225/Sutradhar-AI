@@ -1,4 +1,4 @@
-import type { HealthcareFacility, ReferralRecord } from '../types';
+import type { HealthcareFacility, ReferralLifecycleState, ReferralRecord } from '../types';
 import { getFacilityById } from '../data/synthetic/facilities';
 import { SYNTHETIC_REFERRALS } from '../data/synthetic/referrals';
 
@@ -13,11 +13,11 @@ export const resolveFacilityContext = (
 export type FacilityReferralFilter = 'ALL' | 'PENDING' | 'REACHED' | 'ACTION';
 
 export const matchesFacilityReferralFilter = (
-  state: 'REFERRED' | 'REACH_PENDING' | 'REACHED' | 'TIMEOUT',
+  state: ReferralLifecycleState,
   filter: FacilityReferralFilter
 ): boolean => {
   if (filter === 'ALL') return true;
   if (filter === 'PENDING') return state === 'REFERRED' || state === 'REACH_PENDING';
-  if (filter === 'REACHED') return state === 'REACHED';
+  if (filter === 'REACHED') return state === 'REACHED' || state === 'CARE_RECEIVED' || state === 'CLOSED';
   return state === 'TIMEOUT';
 };

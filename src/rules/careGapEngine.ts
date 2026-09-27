@@ -1,7 +1,7 @@
 import type { Beneficiary, CareGap, ReferralLifecycleSnapshot, ReferralRecord, TimelineEvent } from '../types';
 import { hasExplicitExpiryEvidence, isUnresolvedCareGap } from './careGapRules';
 import type { CareGapReasonCode } from './careGapRules';
-import { createInitialReferralSnapshot } from './referralLifecycle';
+import { createInitialReferralSnapshot, getCareReceivedEvidence } from './referralLifecycle';
 
 export interface CareGapEngineInput {
   beneficiaries: Beneficiary[];
@@ -60,7 +60,9 @@ export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals, referralL
     const beneficiary = beneficiaries.find((item) => item.id === gap.beneficiaryId);
     if (!beneficiary || !isUnresolvedCareGap(gap)) continue;
 
-    const referral = referrals.find((item) => item.beneficiaryId === beneficiary.id);
+    const referral = gap.expectedReferralId
+      ? referrals.find((item) => item.id === gap.expectedReferralId && item.beneficiaryId === beneficiary.id)
+      : referrals.find((item) => item.beneficiaryId === beneficiary.id);
     const gapEvidence = toEvidence(gap);
     const screenings = screeningEvidence(gap);
     for (const event of screenings) {
@@ -73,7 +75,12 @@ export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals, referralL
       ? referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral)
       : undefined;
     const referralState = lifecycle?.state;
-    const arrivalReached = Boolean(referral && (referralState === 'REACHED' || (referralState !== 'TIMEOUT' && referral.handshake.arrivalAcknowledged)));
+    const careReceivedEvidence = referral && lifecycle ? getCareReceivedEvidence(lifecycle, referral.id) : undefined;
+    const expectedStepResolved = Boolean(referral && gap.expectedReferralId === referral.id
+      && careReceivedEvidence?.expectedStep === referral.clinicalIndication
+      && (referralState === 'CARE_RECEIVED' || referralState === 'CLOSED'));
+    if (expectedStepResolved) continue;
+    const arrivalReached = Boolean(referral && (referralState === 'REACHED' || referralState === 'CARE_RECEIVED' || referralState === 'CLOSED' || (referralState !== 'TIMEOUT' && referral.handshake.arrivalAcknowledged)));
     const timeoutEvent = lifecycle?.history.find((event) => event.state === 'TIMEOUT' && event.source === 'SIMULATION');
     const timeoutEvidenceExists = Boolean(timeoutEvent && referralState === 'TIMEOUT');
     const referralExpired = Boolean(referral && !arrivalReached && (timeoutEvidenceExists || hasExplicitExpiryEvidence(gap)));
@@ -146,7 +153,11 @@ export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals, referralL
     const lifecycle = referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral);
     const timeoutEvent = lifecycle.history.find((event) => event.state === 'TIMEOUT' && event.source === 'SIMULATION');
     const timeoutEvidenceExists = lifecycle.state === 'TIMEOUT' && Boolean(timeoutEvent);
-    const arrivalReached = lifecycle.state === 'REACHED' || (lifecycle.state !== 'TIMEOUT' && referral.handshake.arrivalAcknowledged);
+    const careReceivedEvidence = getCareReceivedEvidence(lifecycle, referral.id);
+    const careRecorded = Boolean(careReceivedEvidence && careReceivedEvidence.expectedStep === referral.clinicalIndication
+      && (lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED'));
+    if (careRecorded) continue;
+    const arrivalReached = lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' || (lifecycle.state !== 'TIMEOUT' && referral.handshake.arrivalAcknowledged);
     if (arrivalReached || (!timeoutEvidenceExists && referral.handshake.arrivalAcknowledged)) continue;
     const beneficiary = beneficiaries.find((item) => item.id === referral.beneficiaryId);
     if (!beneficiary) continue;

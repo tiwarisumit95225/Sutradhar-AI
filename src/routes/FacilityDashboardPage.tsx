@@ -35,11 +35,11 @@ const FacilityDashboardPage: React.FC = () => {
   }), [shell.referralLifecycle]);
   const actionIds = new Set(careGaps.map((item) => item.referral?.id).filter(Boolean));
   const visible = records.filter((item) => filter === 'ACTION'
-    ? item.lifecycle.state === 'TIMEOUT' || actionIds.has(item.referral.id)
+    ? item.lifecycle.state === 'TIMEOUT' || item.lifecycle.state === 'CARE_RECEIVED' || actionIds.has(item.referral.id)
     : matchesFacilityReferralFilter(item.lifecycle.state, filter));
   const pendingCount = records.filter(({ lifecycle }) => lifecycle.state === 'REFERRED' || lifecycle.state === 'REACH_PENDING').length;
-  const reachedCount = records.filter(({ lifecycle }) => lifecycle.state === 'REACHED').length;
-  const actionCount = records.filter(({ referral, lifecycle }) => lifecycle.state === 'TIMEOUT' || (actionIds.has(referral.id) && lifecycle.state !== 'REACHED')).length;
+  const reachedCount = records.filter(({ lifecycle }) => lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED').length;
+  const actionCount = records.filter(({ referral, lifecycle }) => lifecycle.state === 'TIMEOUT' || lifecycle.state === 'CARE_RECEIVED' || (actionIds.has(referral.id) && lifecycle.state !== 'CLOSED')).length;
 
   if (!facility) return (
     <div className="flex w-full flex-col gap-space-sm px-margin py-space-sm">
@@ -93,17 +93,17 @@ const FacilityDashboardPage: React.FC = () => {
         {visible.length === 0 ? <Card padding="md"><h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">No referrals in this view</h3><p className="mt-space-xs font-body-sm text-body-sm text-on-surface-variant">No synthetic referrals match the selected lifecycle filter.</p></Card> : (
           <div className="flex flex-col gap-space-sm">
             {visible.map(({ referral, patient, lifecycle, handshakeVerified }) => patient && (
-              <Card key={referral.id} variant={lifecycle.state === 'TIMEOUT' ? 'alert' : lifecycle.state === 'REACHED' ? 'success' : 'default'} padding="md" className="gap-space-sm">
+              <Card key={referral.id} variant={lifecycle.state === 'TIMEOUT' ? 'alert' : lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'success' : 'default'} padding="md" className="gap-space-sm">
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-space-xs">
                   <span className="break-all font-code-sm text-code-sm font-bold text-primary">{referral.id}</span>
-                  <ReferralStatusBadge status={lifecycle.state === 'REACHED' ? 'ARRIVED' : lifecycle.state === 'TIMEOUT' ? 'AWAITING_ARRIVAL' : lifecycle.state === 'REFERRED' ? 'DISPATCHED' : 'IN_TRANSIT'} label={lifecycle.state === 'REACHED' ? 'REACH VERIFIED · SIMULATED' : `${getReferralLifecycleLabel(lifecycle.state)} · SIMULATED`} />
+                  <ReferralStatusBadge status={lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'ARRIVED' : lifecycle.state === 'TIMEOUT' ? 'AWAITING_ARRIVAL' : lifecycle.state === 'REFERRED' ? 'DISPATCHED' : 'IN_TRANSIT'} label={lifecycle.state === 'REACHED' ? 'REACH VERIFIED · SIMULATED' : `${getReferralLifecycleLabel(lifecycle.state)} · SIMULATED`} />
                 </div>
                 <PatientIdentity fullName={patient.fullName} age={patient.age} gender={patient.gender} syntheticId={patient.id} village={patient.village} assignedAshaName={patient.assignedAshaName} />
                 <dl className="grid min-w-0 grid-cols-1 gap-space-xs rounded-lg bg-surface-container-low p-space-sm sm:grid-cols-2">
                   <div><dt className="font-label-sm text-label-sm text-on-surface-variant">Referral purpose</dt><dd className="break-words font-body-sm text-body-sm text-on-surface">{referral.clinicalIndication}</dd></div>
                   <div><dt className="font-label-sm text-label-sm text-on-surface-variant">Destination</dt><dd className="font-body-sm text-body-sm font-semibold text-on-surface">{facility.name}</dd></div>
                   <div><dt className="font-label-sm text-label-sm text-on-surface-variant">Priority</dt><dd className="font-body-sm text-body-sm text-on-surface">{patient.urgencyTier}</dd></div>
-                  <div><dt className="font-label-sm text-label-sm text-on-surface-variant">Handshake</dt><dd className="font-body-sm text-body-sm text-on-surface">{handshakeVerified ? 'Credentials checked in this synthetic session' : lifecycle.state === 'REACHED' ? 'Reach simulated; handshake credentials not checked' : lifecycle.state === 'TIMEOUT' ? 'Not verified · referral timed out' : 'Issued · not verified'}</dd></div>
+                  <div><dt className="font-label-sm text-label-sm text-on-surface-variant">Handshake</dt><dd className="font-body-sm text-body-sm text-on-surface">{handshakeVerified ? 'Credentials checked in this synthetic session' : lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'Reach simulated; handshake credentials not checked' : lifecycle.state === 'TIMEOUT' ? 'Not verified · referral timed out' : 'Issued · not verified'}</dd></div>
                   {referral.milestones.find((milestone) => milestone.milestone === 'REFERRED')?.timestamp && <div><dt className="font-label-sm text-label-sm text-on-surface-variant">Referred</dt><dd className="font-body-sm text-body-sm text-on-surface">{referral.milestones.find((milestone) => milestone.milestone === 'REFERRED')?.timestamp}</dd></div>}
                 </dl>
                 <div className="flex flex-col gap-space-sm">

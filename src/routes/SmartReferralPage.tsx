@@ -9,7 +9,7 @@ import { useShell } from '../context/ShellContext';
 import { getFacilities, getFacilityById, SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../data/synthetic';
 import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
 import { getReferralRequirements, rankFacilityOptions } from '../rules/facilitySuitability';
-import { createInitialReferralSnapshot, getNextReferralStep, getReferralLifecycleLabel, hasHandshakeVerification } from '../rules/referralLifecycle';
+import { createInitialReferralSnapshot, getCareReceivedEvidence, getClosureEvidence, getNextReferralStep, getReferralLifecycleLabel, hasHandshakeVerification } from '../rules/referralLifecycle';
 import { copyHandshakeToken } from '../rules/handshakeClipboard';
 import type { ReferralLifecycleState } from '../types';
 import { ROUTE_PATHS } from './paths';
@@ -51,6 +51,8 @@ const SmartReferralPage: React.FC = () => {
   const selectedFacility = selectedOption?.facility;
   const selectedIsRecommended = selectedFacility?.id === recommendedOption?.facility.id;
   const handshakeVerified = Boolean(referral && lifecycle && hasHandshakeVerification(referral, lifecycle));
+  const careEvidence = lifecycle ? getCareReceivedEvidence(lifecycle, referral?.id) : undefined;
+  const closureEvidence = lifecycle ? getClosureEvidence(lifecycle, referral?.id) : undefined;
 
   const handleLifecycleTransition = (nextState: ReferralLifecycleState) => {
     if (!referral) return;
@@ -145,7 +147,7 @@ const SmartReferralPage: React.FC = () => {
                 assignedAshaName={patient.assignedAshaName}
               />
               <div className="mt-space-sm flex flex-wrap items-center gap-space-xs border-t border-outline-variant/30 pt-space-sm">
-                {lifecycle && <StatusBadge label={`${getReferralLifecycleLabel(lifecycle.state)} · SIMULATED STATE`} variant={lifecycle.state === 'TIMEOUT' ? 'critical' : lifecycle.state === 'REACHED' ? 'success' : lifecycle.state === 'REACH_PENDING' ? 'warning' : 'primary'} />}
+                {lifecycle && <StatusBadge label={`${getReferralLifecycleLabel(lifecycle.state)} · SIMULATED STATE`} variant={lifecycle.state === 'TIMEOUT' ? 'critical' : lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'success' : lifecycle.state === 'REACH_PENDING' ? 'warning' : 'primary'} />}
                 <span className="font-body-sm text-body-sm text-on-surface-variant">Existing destination: {destinationFacility.name}</span>
               </div>
             </Card>
@@ -159,7 +161,7 @@ const SmartReferralPage: React.FC = () => {
                 <div aria-live="polite" aria-atomic="true" className="mt-space-sm flex flex-wrap items-center gap-space-xs">
                   <StatusBadge
                     label={`${getReferralLifecycleLabel(lifecycle.state)} · SIMULATED`}
-                    variant={lifecycle.state === 'TIMEOUT' ? 'critical' : lifecycle.state === 'REACHED' ? 'success' : lifecycle.state === 'REACH_PENDING' ? 'warning' : 'primary'}
+                    variant={lifecycle.state === 'TIMEOUT' ? 'critical' : lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'success' : lifecycle.state === 'REACH_PENDING' ? 'warning' : 'primary'}
                   />
                   <span className="font-body-sm text-body-sm text-on-surface-variant">Destination: {destinationFacility.name}</span>
                 </div>
@@ -177,7 +179,7 @@ const SmartReferralPage: React.FC = () => {
                           <p className="font-label-md text-label-md text-on-surface">{getReferralLifecycleLabel(event.state)}</p>
                           <p className="break-words font-body-sm text-body-sm text-on-surface-variant">{event.detail}</p>
                           <p className="font-code-xs text-code-xs text-secondary">
-                            {event.timestamp ?? (event.source === 'SIMULATION' ? 'Simulated in this session · no timestamp recorded' : 'Synthetic record · no timestamp recorded')}
+                            {event.timestamp ?? (event.source === 'HANDSHAKE_SIMULATION' ? 'Synthetic handshake · no timestamp recorded' : event.source === 'FACILITY_SIMULATION' ? 'Facility simulation · no timestamp recorded' : event.source === 'SIMULATION' ? 'Simulated in this session · no timestamp recorded' : 'Synthetic record · no timestamp recorded')}
                           </p>
                         </div>
                       </li>
@@ -198,12 +200,13 @@ const SmartReferralPage: React.FC = () => {
                       Simulate Missed Arrival
                     </SecondaryButton>
                   </>}
-                  {(lifecycle.state === 'REACHED' || lifecycle.state === 'TIMEOUT') && (
-                    <p className="font-body-sm text-on-surface-variant">No further lifecycle action is available in this loop. Later care steps are placeholders.</p>
-                  )}
+                  {lifecycle.state === 'REACHED' && <p className="font-body-sm text-on-surface-variant">REACH is arrival only. Record care received from the receiving facility workspace.</p>}
+                  {lifecycle.state === 'CARE_RECEIVED' && <p className="font-body-sm text-on-surface-variant">CARE RECEIVED · SIMULATED. Closure confirmation is the next facility step.</p>}
+                  {lifecycle.state === 'CLOSED' && <p role="status" className="font-body-sm font-semibold text-tertiary">CLOSURE CONFIRMED · SIMULATED. Evidence recorded for the expected care step.</p>}
+                  {lifecycle.state === 'TIMEOUT' && <p className="font-body-sm text-on-surface-variant">The referral timed out. No later transition is available in this workflow.</p>}
                 </div>
                 <p aria-live="polite" className="mt-space-sm border-t border-outline-variant/30 pt-space-sm font-body-sm text-on-surface-variant">
-                  Simulation only. REACHED does not mean facility verification, treatment, or care completion.
+                  Simulation only. REACHED, CARE RECEIVED, and CLOSURE are separate states. Closure does not indicate cure or a clinical outcome.
                 </p>
               </Card>
             </section>
@@ -219,8 +222,8 @@ const SmartReferralPage: React.FC = () => {
                     <p className="mt-0.5 font-body-sm text-body-sm text-on-surface-variant">Present the referral ID and passcode at the receiving facility to simulate arrival confirmation.</p>
                   </div>
                   <StatusBadge
-                    label={handshakeVerified || lifecycle.state === 'REACHED' ? 'REACH VERIFIED · SIMULATED' : lifecycle.state === 'TIMEOUT' ? 'REFERRAL TIMED OUT' : 'HANDSHAKE ISSUED'}
-                    variant={handshakeVerified || lifecycle.state === 'REACHED' ? 'success' : lifecycle.state === 'TIMEOUT' ? 'critical' : 'primary'}
+                    label={handshakeVerified || lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'REACH VERIFIED · SIMULATED' : lifecycle.state === 'TIMEOUT' ? 'REFERRAL TIMED OUT' : 'HANDSHAKE ISSUED'}
+                    variant={handshakeVerified || lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'success' : lifecycle.state === 'TIMEOUT' ? 'critical' : 'primary'}
                   />
                 </div>
 
@@ -252,7 +255,9 @@ const SmartReferralPage: React.FC = () => {
                       { title: 'TOKEN ISSUED', done: true },
                       { title: 'TOKEN PRESENTED', done: handshakeVerified },
                       { title: 'VERIFICATION', done: handshakeVerified },
-                      { title: 'REACH CONFIRMED', done: lifecycle.state === 'REACHED' },
+                      { title: 'REACH CONFIRMED', done: lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' },
+                      { title: 'CARE RECEIVED', done: lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' },
+                      { title: 'CLOSURE CONFIRMED', done: lifecycle.state === 'CLOSED' },
                     ].map((step, index) => (
                       <li key={step.title} className="flex min-w-0 items-start gap-space-xs rounded-lg bg-surface-container-low p-space-xs">
                         <span aria-hidden="true" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-code-xs text-code-xs font-bold ${step.done ? 'bg-tertiary text-white' : 'bg-surface-container-high text-on-surface-variant'}`}>{step.done ? '✓' : index + 1}</span>
@@ -266,7 +271,9 @@ const SmartReferralPage: React.FC = () => {
                 {!handshakeVerified && lifecycle.state !== 'TIMEOUT' && (
                   <HandshakeVerificationForm referral={referral} lifecycleState={lifecycle.state} />
                 )}
-                {handshakeVerified && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-on-tertiary-fixed-variant">REACH VERIFIED · The synthetic handshake was verified. Arrival only; care received is not confirmed.</p>}
+                {handshakeVerified && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-on-tertiary-fixed-variant">REACH VERIFIED · The synthetic handshake was verified. Arrival only; care received is a separate step.</p>}
+                {careEvidence && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-on-tertiary-fixed-variant">CARE RECEIVED · SIMULATED. Evidence recorded for expected step: {careEvidence.expectedStep}.</p>}
+                {closureEvidence && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-on-tertiary-fixed-variant">CLOSURE CONFIRMED · SIMULATED. Expected-step evidence recorded; no clinical outcome is asserted.</p>}
                 {lifecycle.state === 'TIMEOUT' && !handshakeVerified && <p role="status" className="mt-space-sm rounded-lg bg-error-container p-space-sm font-body-sm text-on-error-container">This referral timed out. Handshake verification cannot move the lifecycle backward or reopen it in this loop.</p>}
                 <p className="mt-space-sm border-t border-outline-variant/30 pt-space-sm font-code-xs text-code-xs font-semibold text-secondary">SYNTHETIC HANDSHAKE · SIMULATED VERIFICATION · NOT CONNECTED TO A LIVE FACILITY</p>
               </Card>

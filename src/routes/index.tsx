@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import {
   createBrowserRouter,
   Navigate,
@@ -32,8 +32,8 @@ import PatientProfilePage from './PatientProfilePage';
 import ScreeningPage from './ScreeningPage';
 import FacilityDirectoryPage from './FacilityDirectoryPage';
 import SmartReferralPage from './SmartReferralPage';
-import FacilityDashboardPage from './FacilityDashboardPage';
-import FacilityReferralDetailPage from './FacilityReferralDetailPage';
+const FacilityDashboardPage = React.lazy(() => import('./FacilityDashboardPage'));
+const FacilityReferralDetailPage = React.lazy(() => import('./FacilityReferralDetailPage'));
 import { ROUTE_PATHS } from './paths';
 
 /**
@@ -370,8 +370,8 @@ export const router = createBrowserRouter([
           { path: ROUTE_PATHS.frontlineFacilities, element: <FacilityDirectoryPage /> },
           { path: '/frontline/referral/:referralId', element: <SmartReferralPage /> },
           { path: '/frontline/closure/:patientId', element: <FrontlineClosurePage /> },
-          { path: ROUTE_PATHS.facilityDashboard, element: <FacilityDashboardPage /> },
-          { path: '/facility/referral/:referralId', element: <FacilityReferralDetailPage /> },
+          { path: ROUTE_PATHS.facilityDashboard, element: <Suspense fallback={<div className="px-margin py-space-md" role="status">Loading facility workspace…</div>}><FacilityDashboardPage /></Suspense> },
+          { path: '/facility/referral/:referralId', element: <Suspense fallback={<div className="px-margin py-space-md" role="status">Loading referral…</div>}><FacilityReferralDetailPage /></Suspense> },
           { path: '/facility/closure/:patientId', element: <FacilityClosurePage /> },
           { path: ROUTE_PATHS.districtIntelligence, element: <RoutePlaceholder title="District Intelligence" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
           { path: '*', element: <NotFoundPage /> },

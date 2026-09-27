@@ -17,7 +17,7 @@ import {
   SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
 import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
-import { createInitialReferralSnapshot, getNextReferralStep, getReferralLifecycleLabel } from '../rules/referralLifecycle';
+import { createInitialReferralSnapshot, getClosureEvidence, getNextReferralStep, getReferralLifecycleLabel, isJourneyMilestoneComplete } from '../rules/referralLifecycle';
 import { useShell } from '../context/ShellContext';
 import { ROUTE_PATHS } from './paths';
 
@@ -86,6 +86,7 @@ const PatientProfilePage: React.FC = () => {
   const activeCareGap = activeCareGapResult?.careGap;
   const facility = referral ? getFacilityById(referral.destinationFacilityId) : undefined;
   const currentMilestoneLabel = lifecycle ? getNextReferralStep(lifecycle.state) : undefined;
+  const closureEvidence = referral && lifecycle ? getClosureEvidence(lifecycle, referral.id) : undefined;
   const referredAt = referral?.milestones.find(
     (milestone) => milestone.milestone === 'REFERRED'
   )?.timestamp;
@@ -115,7 +116,7 @@ const PatientProfilePage: React.FC = () => {
           {referral && (
             <StatusBadge
               label={`${getReferralLifecycleLabel(lifecycle?.state ?? 'REFERRED')} · SIMULATED STATE`}
-              variant={lifecycle?.state === 'TIMEOUT' ? 'critical' : lifecycle?.state === 'REACHED' ? 'success' : lifecycle?.state === 'REACH_PENDING' ? 'warning' : 'primary'}
+              variant={lifecycle?.state === 'TIMEOUT' ? 'critical' : lifecycle?.state === 'REACHED' || lifecycle?.state === 'CARE_RECEIVED' || lifecycle?.state === 'CLOSED' ? 'success' : lifecycle?.state === 'REACH_PENDING' ? 'warning' : 'primary'}
             />
           )}
         </div>
@@ -149,10 +150,16 @@ const PatientProfilePage: React.FC = () => {
                 ? lifecycle?.state === 'REACH_PENDING' || lifecycle?.state === 'TIMEOUT'
                 : isReceive
                   ? lifecycle?.state === 'REACHED'
+                  : stage.milestone === 'CLOSED'
+                    ? lifecycle?.state === 'CARE_RECEIVED'
                   : milestone?.active ?? (!referral && index === 0);
               const isComplete = isReach
-                ? lifecycle?.state === 'REACHED'
-                : milestone?.completed ?? (!referral && index === 0);
+                ? Boolean(lifecycle && isJourneyMilestoneComplete(lifecycle.state, 'REACH_PENDING'))
+                : isReceive
+                  ? Boolean(lifecycle && isJourneyMilestoneComplete(lifecycle.state, 'RECEIVED'))
+                  : stage.milestone === 'CLOSED'
+                    ? Boolean(lifecycle && isJourneyMilestoneComplete(lifecycle.state, 'CLOSED'))
+                    : milestone?.completed ?? (!referral && index === 0);
               return (
                 <div
                   key={stage.label}
@@ -173,12 +180,16 @@ const PatientProfilePage: React.FC = () => {
                     {isCurrent && <span className="block font-medium">CURRENT</span>}
                     {isReach && lifecycle?.state === 'TIMEOUT' && <span className="block font-medium">TIMED OUT · SIMULATED</span>}
                     {isReceive && lifecycle?.state === 'REACHED' && <span className="block font-medium">NEXT STEP</span>}
+                    {isReceive && lifecycle?.state === 'CARE_RECEIVED' && <span className="block font-medium">SIMULATED</span>}
+                    {stage.milestone === 'CLOSED' && lifecycle?.state === 'CARE_RECEIVED' && <span className="block font-medium">NEXT</span>}
+                    {stage.milestone === 'CLOSED' && lifecycle?.state === 'CLOSED' && <span className="block font-medium">CONFIRMED</span>}
                   </span>
                 </div>
               );
             })}
           </div>
         </Card>
+        {closureEvidence && <Card variant="success" padding="md" className="mt-space-sm"><h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">CLOSURE CONFIRMED · SIMULATED</h2><p className="mt-space-xs font-body-sm text-body-sm text-on-surface">Evidence recorded for expected care step: {closureEvidence.expectedStep}</p><p className="font-code-xs text-code-xs text-on-surface-variant">{closureEvidence.evidenceType} · {closureEvidence.evidenceSource} · no timestamp recorded. This does not indicate cure or a clinical outcome.</p></Card>}
       </section>
 
       {activeCareGap && (
@@ -341,7 +352,7 @@ const PatientProfilePage: React.FC = () => {
               <li key={`lifecycle-${event.id}`} className="flex gap-space-sm border-l-2 border-primary pl-space-sm">
                 <div className="min-w-0">
                   <span className="font-code-xs text-code-xs text-on-surface-variant">
-                    {event.timestamp ?? (event.source === 'HANDSHAKE_SIMULATION' ? 'Synthetic handshake · no timestamp recorded' : event.source === 'SIMULATION' ? 'Simulated in this session · no timestamp recorded' : 'Synthetic record · no timestamp recorded')}
+                            {event.timestamp ?? (event.source === 'HANDSHAKE_SIMULATION' ? 'Synthetic handshake · no timestamp recorded' : event.source === 'FACILITY_SIMULATION' ? 'Facility simulation · no timestamp recorded' : event.source === 'SIMULATION' ? 'Simulated in this session · no timestamp recorded' : 'Synthetic record · no timestamp recorded')}
                   </span>
                   <p className="font-body-sm text-body-sm font-semibold text-on-surface">{getReferralLifecycleLabel(event.state)}{event.source === 'HANDSHAKE_SIMULATION' ? ' · HANDSHAKE EVENT' : ''}</p>
                   <p className="font-body-sm text-body-sm text-on-surface-variant">{event.detail}</p>
