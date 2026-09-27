@@ -11,6 +11,10 @@ export type ReferralTransitionResult =
   | { ok: true; snapshot: ReferralLifecycleSnapshot }
   | { ok: false; snapshot: ReferralLifecycleSnapshot; reason: string };
 
+export type HandshakeVerificationResult =
+  | { ok: true; snapshot: ReferralLifecycleSnapshot; alreadyReached: boolean; alreadyVerified: boolean }
+  | { ok: false; snapshot: ReferralLifecycleSnapshot; reason: 'CREDENTIALS_MISMATCH' | 'REACH_PENDING_REQUIRED' | 'REFERRAL_TIMED_OUT' };
+
 export const getInitialReferralState = (referral: ReferralRecord): ReferralLifecycleState => {
   if (referral.lifecycleState) return referral.lifecycleState;
   if (referral.handshake.arrivalAcknowledged) return 'REACHED';
@@ -57,7 +61,8 @@ export const createInitialReferralSnapshot = (referral: ReferralRecord): Referra
 
 export const transitionReferralLifecycle = (
   snapshot: ReferralLifecycleSnapshot,
-  nextState: ReferralLifecycleState
+  nextState: ReferralLifecycleState,
+  source: 'SIMULATION' | 'HANDSHAKE_SIMULATION' = 'SIMULATION'
 ): ReferralTransitionResult => {
   if (!VALID_TRANSITIONS[snapshot.state].includes(nextState)) {
     return {
@@ -70,17 +75,64 @@ export const transitionReferralLifecycle = (
   const details: Record<ReferralLifecycleState, string> = {
     REFERRED: 'Referral marked referred through a prototype state action.',
     REACH_PENDING: 'Reach pending marked through a prototype simulation action.',
-    REACHED: 'Arrival simulated for this prototype session; this is not facility verification.',
+    REACHED: source === 'HANDSHAKE_SIMULATION'
+      ? 'Synthetic handshake credentials matched; REACH is simulated for this prototype only.'
+      : 'Arrival simulated for this prototype session; this is not facility verification.',
     TIMEOUT: 'Missed arrival simulated for this prototype session; no live timeout was received.',
   };
   const event: ReferralLifecycleEvent = {
     id: `${nextState.toLocaleLowerCase()}-${snapshot.history.length + 1}`,
     state: nextState,
     detail: details[nextState],
-    source: 'SIMULATION',
+    source,
   };
 
   return { ok: true, snapshot: { state: nextState, history: [...snapshot.history, event] } };
+};
+
+export const hasHandshakeVerification = (referral: ReferralRecord, snapshot: ReferralLifecycleSnapshot): boolean =>
+  referral.handshake.arrivalAcknowledged || snapshot.history.some((event) => event.source === 'HANDSHAKE_SIMULATION');
+
+/** Verify stable demo values, then record the outcome through the shared lifecycle snapshot. */
+export const verifyHandshakeCredentials = (
+  referral: ReferralRecord,
+  snapshot: ReferralLifecycleSnapshot,
+  presentedReferralId: string,
+  presentedPasscode: string
+): HandshakeVerificationResult => {
+  if (presentedReferralId.trim() !== referral.id || presentedPasscode.trim() !== referral.handshake.tokenCode) {
+    return { ok: false, snapshot, reason: 'CREDENTIALS_MISMATCH' };
+  }
+
+  if (hasHandshakeVerification(referral, snapshot)) {
+    return { ok: true, snapshot, alreadyReached: true, alreadyVerified: true };
+  }
+  if (snapshot.state === 'TIMEOUT') {
+    return { ok: false, snapshot, reason: 'REFERRAL_TIMED_OUT' };
+  }
+  if (snapshot.state === 'REFERRED') {
+    return { ok: false, snapshot, reason: 'REACH_PENDING_REQUIRED' };
+  }
+
+  if (snapshot.state === 'REACH_PENDING') {
+    const transition = transitionReferralLifecycle(snapshot, 'REACHED', 'HANDSHAKE_SIMULATION');
+    if (!transition.ok) return { ok: false, snapshot, reason: 'REACH_PENDING_REQUIRED' };
+    return { ok: true, snapshot: transition.snapshot, alreadyReached: false, alreadyVerified: false };
+  }
+
+  // REACHED via Loop 9 is terminal; record the valid token check without transitioning backward/forward.
+  const event: ReferralLifecycleEvent = {
+    id: `reached-${snapshot.history.length + 1}`,
+    state: 'REACHED',
+    detail: 'Synthetic handshake credentials matched after REACH was already recorded; no lifecycle transition was performed.',
+    source: 'HANDSHAKE_SIMULATION',
+  };
+  return {
+    ok: true,
+    snapshot: { state: snapshot.state, history: [...snapshot.history, event] },
+    alreadyReached: true,
+    alreadyVerified: false,
+  };
 };
 
 export const getNextReferralStep = (state: ReferralLifecycleState): string => {

@@ -10,7 +10,7 @@ export interface ReferralLifecycleEvent {
   id: string;
   state: ReferralLifecycleState;
   detail: string;
-  source: 'SYNTHETIC_RECORD' | 'SIMULATION';
+  source: 'SYNTHETIC_RECORD' | 'SIMULATION' | 'HANDSHAKE_SIMULATION';
   /** Only populated when the existing synthetic record provides a timestamp. */
   timestamp?: string;
 }

@@ -337,6 +337,17 @@ const PatientProfilePage: React.FC = () => {
                 </div>
               </li>
             ))}
+            {lifecycle?.history.map((event) => (
+              <li key={`lifecycle-${event.id}`} className="flex gap-space-sm border-l-2 border-primary pl-space-sm">
+                <div className="min-w-0">
+                  <span className="font-code-xs text-code-xs text-on-surface-variant">
+                    {event.timestamp ?? (event.source === 'HANDSHAKE_SIMULATION' ? 'Synthetic handshake · no timestamp recorded' : event.source === 'SIMULATION' ? 'Simulated in this session · no timestamp recorded' : 'Synthetic record · no timestamp recorded')}
+                  </span>
+                  <p className="font-body-sm text-body-sm font-semibold text-on-surface">{getReferralLifecycleLabel(event.state)}{event.source === 'HANDSHAKE_SIMULATION' ? ' · HANDSHAKE EVENT' : ''}</p>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">{event.detail}</p>
+                </div>
+              </li>
+            ))}
             {lifecycle && (
               <li className="flex gap-space-sm border-l-2 border-error pl-space-sm">
                 <div className="min-w-0">

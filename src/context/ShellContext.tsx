@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import type { ReferralLifecycleSnapshot, ReferralLifecycleState } from '../types';
 import { SYNTHETIC_REFERRALS } from '../data/synthetic/referrals';
-import { createInitialReferralSnapshot, transitionReferralLifecycle, type ReferralTransitionResult } from '../rules/referralLifecycle';
+import { createInitialReferralSnapshot, transitionReferralLifecycle, verifyHandshakeCredentials, type HandshakeVerificationResult, type ReferralTransitionResult } from '../rules/referralLifecycle';
 
 export type UserRole = 'FRONTLINE_ASHA' | 'FACILITY_CLINICIAN';
 
@@ -24,6 +24,7 @@ export interface ShellContextType {
   hideToast: () => void;
   referralLifecycle: Record<string, ReferralLifecycleSnapshot>;
   transitionReferralState: (referralId: string, nextState: ReferralLifecycleState) => ReferralTransitionResult | undefined;
+  verifyReferralHandshake: (referralId: string, token: string, passcode: string) => HandshakeVerificationResult | undefined;
 }
 
 const ShellContext = createContext<ShellContextType | undefined>(undefined);
@@ -59,6 +60,16 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     return result;
   };
+  const verifyReferralHandshake = (referralId: string, token: string, passcode: string) => {
+    const referral = SYNTHETIC_REFERRALS.find((item) => item.id === referralId);
+    if (!referral) return undefined;
+    const current = referralLifecycle[referralId] ?? createInitialReferralSnapshot(referral);
+    const result = verifyHandshakeCredentials(referral, current, token, passcode);
+    if (result.ok && result.snapshot !== current) {
+      setReferralLifecycle((previous) => ({ ...previous, [referralId]: result.snapshot }));
+    }
+    return result;
+  };
 
   return (
     <ShellContext.Provider
@@ -74,6 +85,7 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         hideToast,
         referralLifecycle,
         transitionReferralState,
+        verifyReferralHandshake,
       }}
     >
       {children}
