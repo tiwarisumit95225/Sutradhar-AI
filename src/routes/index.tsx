@@ -34,6 +34,7 @@ import FacilityDirectoryPage from './FacilityDirectoryPage';
 import SmartReferralPage from './SmartReferralPage';
 const FacilityDashboardPage = React.lazy(() => import('./FacilityDashboardPage'));
 const FacilityReferralDetailPage = React.lazy(() => import('./FacilityReferralDetailPage'));
+const DistrictIntelligencePage = React.lazy(() => import('./DistrictIntelligencePage'));
 import { ROUTE_PATHS } from './paths';
 
 /**
@@ -373,7 +374,7 @@ export const router = createBrowserRouter([
           { path: ROUTE_PATHS.facilityDashboard, element: <Suspense fallback={<div className="px-margin py-space-md" role="status">Loading facility workspace…</div>}><FacilityDashboardPage /></Suspense> },
           { path: '/facility/referral/:referralId', element: <Suspense fallback={<div className="px-margin py-space-md" role="status">Loading referral…</div>}><FacilityReferralDetailPage /></Suspense> },
           { path: '/facility/closure/:patientId', element: <FacilityClosurePage /> },
-          { path: ROUTE_PATHS.districtIntelligence, element: <RoutePlaceholder title="District Intelligence" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
+          { path: ROUTE_PATHS.districtIntelligence, element: <Suspense fallback={<div className="px-margin py-space-md" role="status">Loading district intelligence…</div>}><DistrictIntelligencePage /></Suspense> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

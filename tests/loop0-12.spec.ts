@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { aggregateDistrictIntelligence } from '../src/rules/districtIntelligence';
 
 const runtimeErrors: string[] = [];
 const referralPath = '/frontline/referral/REF-2026-00125';
@@ -204,6 +205,61 @@ test('follow-up controls fit mobile, tablet, and desktop viewports', async ({ pa
     expect(reReferBox).not.toBeNull();
     expect(navBox).not.toBeNull();
     expect(reReferBox!.y + reReferBox!.height).toBeLessThanOrEqual(navBox!.y + 1);
+  }
+});
+
+test('district intelligence derives cases from the engine and supports case drill-down', async ({ page }) => {
+  await page.goto('/district/intelligence');
+  await expect(page.getByRole('heading', { name: 'District Care-Gap Intelligence', level: 1 })).toBeVisible();
+  await expect(page.getByText('SIMULATED OPERATIONAL VIEW', { exact: true })).toBeVisible();
+  await expect(page.locator('[aria-label="Active Care Gaps: 1"]')).toBeVisible();
+  await expect(page.getByText('REFERRAL_ARRIVAL_NOT_CONFIRMED').first()).toBeVisible();
+  await expect(page.getByText('Sunita Devi').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Open Patient Profile' }).click();
+  await expect(page).toHaveURL(/frontline\/patient\/DEMO-00125$/);
+});
+
+test('district intelligence reflects timeout, follow-up, and a new current re-referral', async ({ page }) => {
+  await page.goto(referralPath);
+  await page.getByRole('button', { name: 'Simulate Missed Arrival' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'District Intel' }).click();
+  await expect(page.locator('[aria-label="Follow-up Required: 1"]')).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
+  await page.getByRole('button', { name: 'Start Follow-up' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'District Intel' }).click();
+  await expect(page.locator('[aria-label="Follow-up Required: 0"]')).toBeVisible();
+  await expect(page.getByText('FOLLOW-UP IN PROGRESS', { exact: true }).first()).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
+  await page.getByRole('button', { name: 'Complete Follow-up' }).click();
+  await page.getByRole('button', { name: 'Re-refer Patient' }).click();
+  await page.getByRole('button', { name: 'Create Re-referral' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'District Intel' }).click();
+  await expect(page.locator('[aria-label="Re-referrals: 1"]')).toBeVisible();
+  await expect(page.locator('[aria-label="Current Referrals: 1"]')).toBeVisible();
+  await expect(page.getByText(/REF-2026-00125-R1/).first()).toBeVisible();
+  await expect(page.getByText('Historical referral: REF-2026-00125 · prior attempt remains in history')).toBeVisible();
+  await expect(page.getByText('Sunita Devi')).toHaveCount(1);
+});
+
+test('district aggregation handles empty data without invented metrics', () => {
+  const empty = aggregateDistrictIntelligence({ results: [], referrals: [], referralLifecycle: {}, followUps: {}, facilities: [] });
+  expect(empty.summary).toEqual({ activeCareGaps: 0, reachGaps: 0, followUpRequired: 0, followUpInProgress: 0, reReferralEvents: 0, currentReferrals: 0, closurePending: 0 });
+  expect(empty.cases).toEqual([]);
+  expect(empty.reasons).toEqual([]);
+  expect(empty.stages.every((stage) => stage.count === 0)).toBe(true);
+});
+
+test('district intelligence is responsive without overflow at mobile, tablet, and desktop sizes', async ({ page }) => {
+  for (const viewport of [{ width: 390, height: 780 }, { width: 768, height: 780 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/district/intelligence');
+    await expect(page.getByRole('heading', { name: 'District Care-Gap Intelligence', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Active Care Gaps' })).toBeVisible();
+    const dimensions = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+    expect(dimensions.document).toBeLessThanOrEqual(viewport.width);
+    expect(dimensions.body).toBeLessThanOrEqual(viewport.width);
+    await page.getByRole('navigation').getByRole('button', { name: 'District Intel' }).click();
+    await expect(page).toHaveURL(/district\/intelligence$/);
   }
 });
 
