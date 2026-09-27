@@ -150,9 +150,9 @@ const DesignSystemVerificationPage: React.FC = () => {
 
           <SecondaryButton
             icon="sync"
-            onClick={shell.toggleOnline}
+            onClick={shell.syncPendingActions}
           >
-            Simulate Connection: Currently {shell.isOnline ? 'ONLINE' : 'OFFLINE'}
+            Sync Local Actions · {shell.pendingSyncCount} Pending
           </SecondaryButton>
 
           <div className="grid grid-cols-2 gap-space-xs mt-0.5">

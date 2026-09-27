@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import type { FollowUpStatus, ReferralLifecycleSnapshot, ReferralLifecycleState, ReferralRecord, SyntheticFollowUp, SyntheticFollowUpEvent } from '../types';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import type { FollowUpStatus, LocalActionType, LocalQueuedAction, ReferralLifecycleSnapshot, ReferralLifecycleState, ReferralRecord, SyntheticFollowUp, SyntheticFollowUpEvent } from '../types';
 import { SYNTHETIC_REFERRALS } from '../data/synthetic/referrals';
 import { createInitialReferralSnapshot, transitionReferralLifecycle, verifyHandshakeCredentials, type HandshakeVerificationResult, type ReferralTransitionResult } from '../rules/referralLifecycle';
 
@@ -18,7 +18,12 @@ export interface ShellContextType {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   isOnline: boolean;
-  toggleOnline: () => void;
+  localQueue: LocalQueuedAction[];
+  pendingSyncCount: number;
+  recordLocalAction: (type: LocalActionType, payload: Record<string, string>) => LocalQueuedAction;
+  saveScreening: (patientId: string) => void;
+  isScreeningSaved: (patientId: string) => boolean;
+  syncPendingActions: () => number;
   toast: ToastMessage | null;
   showToast: (title: string, description: string, type?: 'success' | 'alert' | 'info') => void;
   hideToast: () => void;
@@ -34,18 +39,131 @@ export interface ShellContextType {
 
 const ShellContext = createContext<ShellContextType | undefined>(undefined);
 
+const LOCAL_STATE_KEY = 'sutradhar-prototype-session-v1';
+
+interface ReReferralCycle { sourceReferralId: string; facilityId: string; attempt: number }
+interface PersistedSession {
+  version: 1;
+  referralLifecycle: Record<string, ReferralLifecycleSnapshot>;
+  followUps: Record<string, SyntheticFollowUp>;
+  reReferralCycles: ReReferralCycle[];
+  savedScreeningIds: string[];
+  localQueue: LocalQueuedAction[];
+}
+
+const readPersistedSession = (): Partial<PersistedSession> => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STATE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Partial<PersistedSession>;
+    return parsed.version === 1 ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const makeReReferral = (source: ReferralRecord, facilityId: string, attempt: number, careGapId?: string): ReferralRecord => {
+  const id = `${source.id}-R${attempt}`;
+  return {
+    ...source,
+    id,
+    destinationFacilityId: facilityId,
+    sourceReferralId: source.id,
+    ...(careGapId ? { sourceCareGapId: careGapId } : {}),
+    lifecycleState: 'REACH_PENDING',
+    currentTransitStatus: 'Awaiting arrival · re-referral simulation',
+    handshake: {
+      ...source.handshake,
+      referralId: id,
+      tokenCode: `${source.handshake.tokenCode}-R${attempt}`,
+      destinationFacilityId: facilityId,
+      generatedAt: undefined,
+      arrivalAcknowledged: false,
+      acknowledgedAt: undefined,
+    },
+    milestones: source.milestones.map((milestone) => milestone.milestone === 'REFERRED'
+      ? { ...milestone, completed: true, active: false }
+      : milestone.milestone === 'REACH_PENDING'
+        ? { ...milestone, completed: false, active: true }
+        : { ...milestone, completed: false, active: false, timestamp: undefined }),
+  };
+};
+
 export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [persisted] = useState(readPersistedSession);
   const [role, setRole] = useState<UserRole>('FRONTLINE_ASHA');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [referralLifecycle, setReferralLifecycle] = useState<Record<string, ReferralLifecycleSnapshot>>(() =>
-    Object.fromEntries(SYNTHETIC_REFERRALS.map((referral) => [referral.id, createInitialReferralSnapshot(referral)]))
+    persisted.referralLifecycle ?? Object.fromEntries(SYNTHETIC_REFERRALS.map((referral) => [referral.id, createInitialReferralSnapshot(referral)]))
   );
-  const [referrals, setReferrals] = useState<ReferralRecord[]>(SYNTHETIC_REFERRALS);
-  const [followUps, setFollowUps] = useState<Record<string, SyntheticFollowUp>>({});
+  const [followUps, setFollowUps] = useState<Record<string, SyntheticFollowUp>>(persisted.followUps ?? {});
+  const [reReferralCycles, setReReferralCycles] = useState<ReReferralCycle[]>(persisted.reReferralCycles ?? []);
+  const [savedScreeningIds, setSavedScreeningIds] = useState<string[]>(persisted.savedScreeningIds ?? []);
+  const [localQueue, setLocalQueue] = useState<LocalQueuedAction[]>(persisted.localQueue ?? []);
+  const [referrals, setReferrals] = useState<ReferralRecord[]>(() => {
+    const cycles = persisted.reReferralCycles ?? [];
+    const restored = [...SYNTHETIC_REFERRALS];
+    cycles.forEach((cycle) => {
+      const source = restored.find((item) => item.id === cycle.sourceReferralId);
+      if (source) restored.push(makeReReferral(source, cycle.facilityId, cycle.attempt, persisted.followUps?.[source.id]?.careGapId));
+    });
+    return restored;
+  });
 
-  const toggleOnline = () => setIsOnline((prev) => !prev);
+  const pendingSyncCount = localQueue.filter((action) => action.syncStatus === 'PENDING SYNC').length;
+
+  const syncPendingActions = () => {
+    if (!isOnline) return 0;
+    const count = localQueue.filter((action) => action.syncStatus === 'PENDING SYNC').length;
+    if (count) setLocalQueue((previous) => previous.map((action) => action.syncStatus === 'PENDING SYNC' ? { ...action, syncStatus: 'SYNCED' } : action));
+    return count;
+  };
+
+  const recordLocalAction = (type: LocalActionType, payload: Record<string, string>) => {
+    const action: LocalQueuedAction = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      type,
+      payload,
+      createdAt: new Date().toISOString(),
+      syncStatus: isOnline ? 'SYNCED' : 'PENDING SYNC',
+    };
+    setLocalQueue((previous) => [...previous.slice(-249), action]);
+    return action;
+  };
+
+  const saveScreening = (patientId: string) => {
+    setSavedScreeningIds((previous) => previous.includes(patientId) ? previous : [...previous, patientId]);
+    recordLocalAction('SCREENING_SAVED', { patientId });
+  };
+
+  const isScreeningSaved = (patientId: string) => savedScreeningIds.includes(patientId);
+
+  useEffect(() => {
+    const onOffline = () => setIsOnline(false);
+    const onOnline = () => {
+      setIsOnline(true);
+      setLocalQueue((previous) => previous.map((action) => action.syncStatus === 'PENDING SYNC' ? { ...action, syncStatus: 'SYNCED' } : action));
+    };
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isOnline && pendingSyncCount) {
+      setLocalQueue((previous) => previous.map((action) => action.syncStatus === 'PENDING SYNC' ? { ...action, syncStatus: 'SYNCED' } : action));
+    }
+  }, [isOnline, pendingSyncCount]);
+
+  useEffect(() => {
+    const data: PersistedSession = { version: 1, referralLifecycle, followUps, reReferralCycles, savedScreeningIds, localQueue };
+    try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(data)); } catch { /* Prototype remains usable for this tab when storage is unavailable. */ }
+  }, [referralLifecycle, followUps, reReferralCycles, savedScreeningIds, localQueue]);
 
   const showToast = (title: string, description: string, type: 'success' | 'alert' | 'info' = 'info') => {
     setToast({
@@ -71,6 +189,7 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     );
     if (result.ok) {
       setReferralLifecycle((previous) => ({ ...previous, [referralId]: result.snapshot }));
+      recordLocalAction('REFERRAL_LIFECYCLE', { referralId, nextState });
     }
     return result;
   };
@@ -81,6 +200,7 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const result = verifyHandshakeCredentials(referral, current, token, passcode);
     if (result.ok && result.snapshot !== current) {
       setReferralLifecycle((previous) => ({ ...previous, [referralId]: result.snapshot }));
+      recordLocalAction('HANDSHAKE_VERIFIED', { referralId });
     }
     return result;
   };
@@ -116,6 +236,7 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       events: [],
     };
     setFollowUps((previous) => ({ ...previous, [referralId]: addFollowUpEvent(required, 'IN_PROGRESS', 'FOLLOW_UP_STARTED', 'Follow-up started — simulated. Review the referral and re-engage the patient to confirm a next care option.') }));
+    recordLocalAction('FOLLOW_UP_STARTED', { referralId, ...(required.careGapId ? { careGapId: required.careGapId } : {}) });
     return true;
   };
 
@@ -123,6 +244,7 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const record = followUps[referralId];
     if (!record || record.status !== 'IN_PROGRESS') return false;
     setFollowUps((previous) => ({ ...previous, [referralId]: addFollowUpEvent(record, 'COMPLETED', 'FOLLOW_UP_COMPLETED', 'Follow-up completed — simulated. No patient contact is asserted.') }));
+    recordLocalAction('FOLLOW_UP_COMPLETED', { referralId });
     return true;
   };
 
@@ -135,33 +257,13 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     let attempt = 1;
     while (referrals.some((item) => item.id === `${source.id}-R${attempt}`)) attempt += 1;
     const id = `${source.id}-R${attempt}`;
-    const newReferral: ReferralRecord = {
-      ...source,
-      id,
-      destinationFacilityId: facilityId,
-      sourceReferralId: source.id,
-      ...(followUp.careGapId ? { sourceCareGapId: followUp.careGapId } : {}),
-      lifecycleState: 'REACH_PENDING',
-      currentTransitStatus: 'Awaiting arrival · re-referral simulation',
-      handshake: {
-        ...source.handshake,
-        referralId: id,
-        tokenCode: `${source.handshake.tokenCode}-R${attempt}`,
-        destinationFacilityId: facilityId,
-        generatedAt: undefined,
-        arrivalAcknowledged: false,
-        acknowledgedAt: undefined,
-      },
-      milestones: source.milestones.map((milestone) => milestone.milestone === 'REFERRED'
-        ? { ...milestone, completed: true, active: false }
-        : milestone.milestone === 'REACH_PENDING'
-          ? { ...milestone, completed: false, active: true }
-          : { ...milestone, completed: false, active: false, timestamp: undefined }),
-    };
+    const newReferral = makeReReferral(source, facilityId, attempt, followUp.careGapId);
     const linkedFollowUp = addFollowUpEvent({ ...followUp, reReferralId: id }, 'COMPLETED', 'RE_REFERRAL_CREATED', `New synthetic referral ${id} created in REACH_PENDING; original ${source.id} remains timed out.`);
     setReferrals((previous) => [...previous, newReferral]);
+    setReReferralCycles((previous) => [...previous, { sourceReferralId: source.id, facilityId, attempt }]);
     setReferralLifecycle((previous) => ({ ...previous, [id]: createInitialReferralSnapshot(newReferral) }));
     setFollowUps((previous) => ({ ...previous, [referralId]: linkedFollowUp }));
+    recordLocalAction('RE_REFERRAL_CREATED', { referralId: id, sourceReferralId: source.id, facilityId });
     return newReferral;
   };
 
@@ -173,7 +275,12 @@ export const ShellProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         activeTab,
         setActiveTab,
         isOnline,
-        toggleOnline,
+        localQueue,
+        pendingSyncCount,
+        recordLocalAction,
+        saveScreening,
+        isScreeningSaved,
+        syncPendingActions,
         toast,
         showToast,
         hideToast,

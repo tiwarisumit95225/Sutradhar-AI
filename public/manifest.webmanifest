@@ -1,0 +1,13 @@
+{
+  "name": "Sutradhar AI — Rural Care-Gap Intelligence",
+  "short_name": "Sutradhar AI",
+  "description": "Synthetic offline-ready operational care journey prototype.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f9ff",
+  "theme_color": "#0037b0",
+  "icons": [
+    { "src": "/pwa-icon.svg", "sizes": "192x192 512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

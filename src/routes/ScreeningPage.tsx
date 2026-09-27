@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Card,
@@ -31,7 +31,6 @@ const ScreeningPage: React.FC = () => {
   const { patientId } = useParams<'patientId'>();
   const navigate = useNavigate();
   const shell = useShell();
-  const [savedForSession, setSavedForSession] = useState(false);
   const patient = SYNTHETIC_BENEFICIARIES.find((item) => item.id === patientId);
 
   if (!patient) {
@@ -113,13 +112,15 @@ const ScreeningPage: React.FC = () => {
   ];
 
   const saveScreeningPreview = () => {
-    setSavedForSession(true);
+    shell.saveScreening(patient.id);
     shell.showToast(
-      'Screening preview saved',
-      'This confirmation is temporary and is not sent to or stored by a backend.',
+      shell.isOnline ? 'Screening preview saved locally' : 'Screening saved locally · PENDING SYNC',
+      shell.isOnline ? 'Local prototype storage only. Simulated sync does not contact a server.' : 'Saved locally — will sync when connection returns. No server was contacted.',
       'success'
     );
   };
+
+  const savedForSession = shell.isScreeningSaved(patient.id);
 
   return (
     <div className="flex w-full flex-col gap-space-md px-margin py-space-sm">
@@ -341,7 +342,7 @@ const ScreeningPage: React.FC = () => {
           </PrimaryButton>
         </div>
         <p className="mt-space-xs text-center font-body-sm text-body-sm text-on-surface-variant">
-          Prototype interaction only · no backend or persistent storage
+          LOCAL PROTOTYPE STORAGE · SIMULATED SYNC ONLY · NO SERVER
         </p>
       </section>
     </div>

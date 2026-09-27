@@ -13,14 +13,14 @@ export const SyncStatus: React.FC<SyncStatusProps> = ({
   onClick,
   className = '',
 }) => {
-  const displayLabel = label || (isOnline ? 'Cache Synced' : 'Offline Mode');
+  const displayLabel = label || (isOnline ? 'ONLINE' : 'OFFLINE');
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={`min-h-[48px] flex items-center justify-center gap-1.5 px-space-sm py-1 rounded bg-surface-container-high text-on-surface transition-colors cursor-pointer hover:bg-surface-container-highest ${className}`}
-      title="Toggle Network / Cache Sync Simulation"
+      title="Sync pending local actions · simulated only"
       aria-label={displayLabel}
     >
       <span

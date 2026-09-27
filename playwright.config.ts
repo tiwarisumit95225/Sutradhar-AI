@@ -7,13 +7,13 @@ export default defineConfig({
   reporter: 'list',
   use: {
     ...devices['Desktop Chrome'],
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:4173',
     browserName: 'chromium',
     headless: true,
   },
   webServer: {
-    command: 'npm run dev -- --host 0.0.0.0 --port 3000 --strictPort',
-    url: 'http://localhost:3000/login',
+    command: 'npm run build && npm run preview -- --host 0.0.0.0 --port 4173 --strictPort',
+    url: 'http://localhost:4173/login',
     reuseExistingServer: true,
     timeout: 30_000,
   },

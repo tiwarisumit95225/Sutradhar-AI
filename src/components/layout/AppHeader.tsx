@@ -12,7 +12,7 @@ export interface AppHeaderProps {
   role?: UserRole;
   onRoleChange?: (role: UserRole) => void;
   isOnline?: boolean;
-  onToggleOnline?: () => void;
+  onSync?: () => void;
   className?: string;
 }
 
@@ -21,7 +21,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   role,
   onRoleChange,
   isOnline,
-  onToggleOnline,
+  onSync,
   className = '',
 }) => {
   const shell = useShell();
@@ -37,7 +37,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     );
   };
   const activeOnline = isOnline ?? shell.isOnline;
-  const handleToggleOnline = onToggleOnline ?? shell.toggleOnline;
+  const handleSync = onSync ?? shell.syncPendingActions;
+  const syncLabel = !activeOnline
+    ? shell.pendingSyncCount ? 'OFFLINE · PENDING SYNC' : 'OFFLINE'
+    : shell.pendingSyncCount ? 'PENDING SYNC' : shell.localQueue.length ? 'SYNCED' : 'ONLINE';
 
   return (
     <header
@@ -52,7 +55,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <div className="flex items-center justify-between gap-space-xs sm:justify-end sm:gap-space-sm">
           <SyncStatus
             isOnline={activeOnline}
-            onClick={handleToggleOnline}
+            label={syncLabel}
+            onClick={handleSync}
             className="flex-1 sm:flex-none"
           />
           <RoleSwitcher

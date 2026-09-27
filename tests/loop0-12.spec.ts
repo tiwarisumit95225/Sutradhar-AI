@@ -10,7 +10,9 @@ const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HA
 const observeRuntime = async (page: Page) => {
   page.on('pageerror', (error) => runtimeErrors.push(error.message));
   page.on('console', (message) => {
-    if (message.type() === 'error' && !message.text().includes('net::ERR_NETWORK_ACCESS_DENIED')) runtimeErrors.push(message.text());
+    if (message.type() === 'error'
+      && !message.text().includes('net::ERR_NETWORK_ACCESS_DENIED')
+      && !message.text().includes('net::ERR_INTERNET_DISCONNECTED')) runtimeErrors.push(message.text());
   });
   await page.route(/https:\/\/[^/]+\.tile\.openstreetmap\.org\//, (route) =>
     route.fulfill({ status: 200, contentType: 'image/png', body: transparentPixel })
@@ -40,6 +42,12 @@ const completeReachHandshake = async (page: Page) => {
 
 test.beforeEach(async ({ page }) => {
   runtimeErrors.length = 0;
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('__sutradhar-test-cleaned')) {
+      localStorage.removeItem('sutradhar-prototype-session-v1');
+      sessionStorage.setItem('__sutradhar-test-cleaned', '1');
+    }
+  });
   await observeRuntime(page);
 });
 
@@ -263,6 +271,82 @@ test('district intelligence is responsive without overflow at mobile, tablet, an
   }
 });
 
+test('PWA shell, local offline queue, core actions, refresh, and simulated recovery work', async ({ page, context }) => {
+  const apiRequests: string[] = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/')) apiRequests.push(request.url());
+  });
+  await page.goto('/frontline/screening/DEMO-00125');
+  await expect(page.getByRole('button', { name: 'ONLINE' })).toBeVisible();
+  const controlledByServiceWorker = await page.evaluate(async () => {
+    if (!('serviceWorker' in navigator)) return false;
+    const registration = await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) {
+      await new Promise<void>((resolve) => {
+        navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true });
+        window.setTimeout(resolve, 5000);
+      });
+    }
+    return Boolean(registration.active && navigator.serviceWorker.controller);
+  });
+  expect(controlledByServiceWorker).toBe(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: /Screening for Sunita Devi/ })).toBeAttached();
+  const cachedFacilityChunk = await page.evaluate(async () => Boolean(await caches.match('/assets/FacilityDashboardPage-DYeECl-N.js')));
+  expect(cachedFacilityChunk).toBe(true);
+  // Exercise the lazy facility route once while online, matching an installed user who has opened the app shell.
+  await switchRole(page, 'Facility (Clinician)');
+  await expect(page.getByRole('button', { name: 'View Referral Details' })).toBeVisible();
+  await page.goto('/facility/referral/REF-2026-00125');
+  await expect(page.getByRole('heading', { name: 'REF-2026-00125' })).toBeVisible();
+  await switchRole(page, 'Frontline (ASHA)');
+  await expect(page).toHaveURL(/frontline\/dashboard$/);
+  await page.goto('/frontline/screening/DEMO-00125');
+
+  await context.setOffline(true);
+  await expect(page.getByText('OFFLINE', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Save Screening' }).click();
+  await expect(page.getByText(/PENDING SYNC/).first()).toBeVisible();
+  await expect(page.getByText('Saved locally — will sync when connection returns.', { exact: true }).first()).toBeVisible();
+  const storedOffline = await page.evaluate(() => localStorage.getItem('sutradhar-prototype-session-v1') ?? '');
+  expect(storedOffline).toContain('SCREENING_SAVED');
+  expect(storedOffline).toContain('PENDING SYNC');
+  expect(storedOffline).not.toContain('SH-28491');
+  expect(storedOffline).not.toContain('tokenCode');
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Saved for This Session' })).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: 'Dashboard' }).click();
+  await page.getByRole('button', { name: "Continue Sunita's Case" }).click();
+  await expect(page.getByRole('heading', { name: /Patient Profile for Sunita Devi/ })).toBeAttached();
+  await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
+  await expect(page.getByRole('heading', { name: gapTitle })).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: 'Referrals' }).click();
+  await page.getByRole('button', { name: 'Simulate Arrival' }).click();
+  await page.getByRole('button', { name: 'Verify Handshake · Simulated' }).click();
+  await switchRole(page, 'Facility (Clinician)');
+  await page.getByRole('button', { name: 'View Referral Details' }).click();
+  await page.getByRole('button', { name: 'Record Care Received · Simulated' }).click();
+  await page.getByRole('button', { name: 'Confirm Closure · Simulated' }).click();
+  await expect(page.getByText('CLOSURE CONFIRMED · SIMULATED', { exact: true }).first()).toBeVisible();
+  expect(apiRequests).toEqual([]);
+
+  await context.setOffline(false);
+  await expect(page.getByText('SYNCED', { exact: true }).first()).toBeVisible();
+  const storedSynced = await page.evaluate(() => JSON.parse(localStorage.getItem('sutradhar-prototype-session-v1') ?? '{}'));
+  expect(storedSynced.localQueue.length).toBeGreaterThanOrEqual(5);
+  expect(storedSynced.localQueue.every((action: { syncStatus: string }) => action.syncStatus === 'SYNCED')).toBe(true);
+  expect(apiRequests).toEqual([]);
+
+  for (const viewport of [{ width: 390, height: 780 }, { width: 768, height: 780 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByRole('button', { name: 'Sync pending prototype actions' })).toBeVisible();
+    const dimensions = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+    expect(dimensions.document).toBeLessThanOrEqual(viewport.width);
+    expect(dimensions.body).toBeLessThanOrEqual(viewport.width);
+  }
+});
+
 test('handshake and complete cross-role golden path share lifecycle and evidence', async ({ page }) => {
   await page.goto(referralPath);
   await expect(page.getByText('REF-2026-00125', { exact: true }).first()).toBeVisible();
@@ -323,6 +407,13 @@ test('responsive primary screens fit and their key controls clear the fixed navi
     await page.setViewportSize(viewport);
     for (const screen of screens) {
       await page.goto(screen.path);
+      if (screen.path === '/frontline/care-gaps') {
+        await expect(page.getByRole('heading', { name: 'Care Gap Center' })).toBeVisible();
+        const emptyStateDimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+        expect(emptyStateDimensions.document).toBeLessThanOrEqual(viewport.width);
+        expect(emptyStateDimensions.body).toBeLessThanOrEqual(viewport.width);
+        continue;
+      }
       const action = page.getByRole('button', { name: screen.action }).first();
       await action.scrollIntoViewIfNeeded();
       await page.evaluate(() => window.scrollBy(0, 120));
@@ -337,6 +428,9 @@ test('responsive primary screens fit and their key controls clear the fixed navi
       expect(actionBox!.y + actionBox!.height, `${screen.path} action is obscured by bottom nav`).toBeLessThanOrEqual(navBox!.y + 1);
     }
 
+    await chooseRole(page, 'Facility / Clinician');
+    await page.evaluate(() => localStorage.removeItem('sutradhar-prototype-session-v1'));
+    await page.reload();
     await page.goto('/facility/referral/REF-2026-00125');
     await page.getByLabel('Referral token').fill('REF-2026-00125');
     await page.getByLabel('Handshake passcode').fill('SH-28491');
