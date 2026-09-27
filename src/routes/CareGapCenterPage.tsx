@@ -1,10 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CareGapBadge, OfflineStatus, PatientIdentity, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
-import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../data/synthetic';
+import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS } from '../data/synthetic';
 import { evaluateCareGaps } from '../rules/careGapEngine';
 import { useShell } from '../context/ShellContext';
 import { ROUTE_PATHS } from './paths';
+import FollowUpRecoveryPanel from '../components/referral/FollowUpRecoveryPanel';
 
 const CareGapCenterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -12,8 +13,9 @@ const CareGapCenterPage: React.FC = () => {
   const results = evaluateCareGaps({
     beneficiaries: SYNTHETIC_BENEFICIARIES,
     careGaps: SYNTHETIC_CARE_GAPS,
-    referrals: SYNTHETIC_REFERRALS,
+    referrals: shell.referrals,
     referralLifecycle: shell.referralLifecycle,
+    followUps: shell.followUps,
   });
 
   return (
@@ -65,6 +67,7 @@ const CareGapCenterPage: React.FC = () => {
                 </div>
                 <div className="rounded-lg bg-surface-container-low p-space-sm"><span className="font-label-sm text-label-sm font-semibold text-primary">Suggested action · human review</span><p className="mt-0.5 font-body-sm text-body-sm text-on-surface">{item.suggestedAction}</p></div>
                 <SecondaryButton icon="person_search" onClick={() => navigate(ROUTE_PATHS.frontlinePatient(item.beneficiary.id))}>Open Patient Profile</SecondaryButton>
+                {item.referral && item.result === 'CARE_GAP' && <FollowUpRecoveryPanel referral={item.referral} careGapId={item.careGap?.id} />}
               </Card>
             ))}
           </div>

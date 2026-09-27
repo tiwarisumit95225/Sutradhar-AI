@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Card, OfflineStatus, PatientIdentity, PrimaryButton, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
 import FacilityCard from '../components/facility/FacilityCard';
 import FacilityMap from '../components/facility/FacilityMap';
 import SyntheticHandshakeQr from '../components/facility/SyntheticHandshakeQr';
 import HandshakeVerificationForm from '../components/facility/HandshakeVerificationForm';
+import FollowUpRecoveryPanel from '../components/referral/FollowUpRecoveryPanel';
 import { useShell } from '../context/ShellContext';
-import { getFacilities, getFacilityById, SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../data/synthetic';
+import { getFacilities, getFacilityById, SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS } from '../data/synthetic';
 import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
 import { getReferralRequirements, rankFacilityOptions } from '../rules/facilitySuitability';
 import { createInitialReferralSnapshot, getCareReceivedEvidence, getClosureEvidence, getNextReferralStep, getReferralLifecycleLabel, hasHandshakeVerification } from '../rules/referralLifecycle';
@@ -17,8 +18,12 @@ import { ROUTE_PATHS } from './paths';
 const SmartReferralPage: React.FC = () => {
   const { referralId } = useParams<'referralId'>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const shell = useShell();
-  const referral = SYNTHETIC_REFERRALS.find((item) => item.id === referralId);
+  const referral = shell.referrals.find((item) => item.id === referralId);
+  const reReferFrom = searchParams.get('reReferFrom');
+  const sourceFollowUp = reReferFrom ? shell.followUps[reReferFrom] : undefined;
+  const reReferralMode = Boolean(reReferFrom && reReferFrom === referralId && sourceFollowUp?.status === 'COMPLETED' && !sourceFollowUp.reReferralId);
   const patient = referral
     ? SYNTHETIC_BENEFICIARIES.find((item) => item.id === referral.beneficiaryId)
     : undefined;
@@ -30,9 +35,10 @@ const SmartReferralPage: React.FC = () => {
   const engineResults = useMemo(() => getCareGapsForBeneficiary({
     beneficiaries: SYNTHETIC_BENEFICIARIES,
     careGaps: SYNTHETIC_CARE_GAPS,
-    referrals: SYNTHETIC_REFERRALS,
+    referrals: shell.referrals,
     referralLifecycle: shell.referralLifecycle,
-  }, patient?.id), [patient?.id, shell.referralLifecycle]);
+    followUps: shell.followUps,
+  }, patient?.id), [patient?.id, shell.referralLifecycle, shell.referrals, shell.followUps]);
   const careGapContext = engineResults[0];
   const requirements = useMemo(() => getReferralRequirements(careGapContext), [careGapContext]);
   const options = useMemo(() => rankFacilityOptions(getFacilities(), requirements), [requirements]);
@@ -101,6 +107,16 @@ const SmartReferralPage: React.FC = () => {
 
   const handleContinue = () => {
     if (!selectedFacility) return;
+    if (reReferralMode && reReferFrom) {
+      const created = shell.createReReferral(reReferFrom, selectedFacility.id);
+      if (!created) {
+        shell.showToast('Re-referral unavailable', 'Complete follow-up for a timed-out referral before creating a new cycle.', 'alert');
+        return;
+      }
+      shell.showToast('Re-referral created — simulated', `${created.id} is a new REACH_PENDING cycle. The original referral remains TIMEOUT.`, 'success');
+      navigate(ROUTE_PATHS.frontlineReferral(created.id), { replace: true });
+      return;
+    }
     shell.showToast(
       'Facility option selected',
       `${selectedFacility.name} is selected locally for human review. No referral was created.`,
@@ -209,6 +225,7 @@ const SmartReferralPage: React.FC = () => {
                   Simulation only. REACHED, CARE RECEIVED, and CLOSURE are separate states. Closure does not indicate cure or a clinical outcome.
                 </p>
               </Card>
+              <div className="mt-space-sm"><FollowUpRecoveryPanel referral={referral} careGapId={engineResults.find((result) => result.referral?.id === referral.id)?.careGap?.id} /></div>
             </section>
           )}
 
@@ -373,12 +390,12 @@ const SmartReferralPage: React.FC = () => {
           <p aria-live="polite" className="min-w-0 font-body-sm text-body-sm text-on-surface">
             Selected: <strong className="break-words">{selectedFacility?.name ?? 'No facility selected'}</strong>
           </p>
-          <PrimaryButton icon="arrow_forward" isFullWidth={false} disabled={!selectedFacility} onClick={handleContinue}>
-            Continue with selected option
+          <PrimaryButton icon="arrow_forward" isFullWidth={false} disabled={!selectedFacility || (Boolean(reReferFrom) && !reReferralMode)} onClick={handleContinue}>
+            {reReferralMode ? 'Create Re-referral' : 'Continue with selected option'}
           </PrimaryButton>
         </div>
       </div>
-      <p className="text-center font-code-xs text-code-xs text-secondary">SYNTHETIC DATA · SIMULATED INTEGRATION · NO REFERRAL CREATED</p>
+      <p className="text-center font-code-xs text-code-xs text-secondary">SYNTHETIC DATA · SIMULATED INTEGRATION · {reReferralMode ? 'RE-REFERRAL CREATES A NEW SYNTHETIC CYCLE' : 'NO REFERRAL CREATED'}</p>
     </div>
   );
 };

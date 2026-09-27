@@ -2,12 +2,14 @@ import type { Beneficiary, CareGap, ReferralLifecycleSnapshot, ReferralRecord, T
 import { hasExplicitExpiryEvidence, isUnresolvedCareGap } from './careGapRules';
 import type { CareGapReasonCode } from './careGapRules';
 import { createInitialReferralSnapshot, getCareReceivedEvidence } from './referralLifecycle';
+import type { SyntheticFollowUp } from '../types';
 
 export interface CareGapEngineInput {
   beneficiaries: Beneficiary[];
   careGaps: CareGap[];
   referrals: ReferralRecord[];
   referralLifecycle?: Record<string, ReferralLifecycleSnapshot>;
+  followUps?: Record<string, SyntheticFollowUp>;
 }
 
 export interface CareGapEvidence {
@@ -52,7 +54,7 @@ const screeningEvidence = (gap: CareGap | undefined): TimelineEvent[] =>
   gap?.explanation.evidenceTrail.filter((event) => event.statusType === 'SCREENING') ?? [];
 
 /** Deterministic operational rules using only supplied synthetic records. */
-export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals, referralLifecycle = {} }: CareGapEngineInput): CareGapEngineResult[] => {
+export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals, referralLifecycle = {}, followUps = {} }: CareGapEngineInput): CareGapEngineResult[] => {
   const results: CareGapEngineResult[] = [];
   const knownIds = new Set(beneficiaries.map((beneficiary) => beneficiary.id));
 
@@ -95,6 +97,13 @@ export const evaluateCareGaps = ({ beneficiaries, careGaps, referrals, referralL
         sourceType: 'REFERRAL_LIFECYCLE',
         sourceId: event.id,
         label: `${event.state}${event.timestamp ? ` · ${event.timestamp}` : ''}`,
+        detail: event.detail,
+      }));
+      const followUp = followUps[referral.id];
+      followUp?.events.forEach((event) => gapEvidence.push({
+        sourceType: 'REFERRAL_LIFECYCLE',
+        sourceId: event.id,
+        label: `${event.event.replace(/_/g, ' ')} · SIMULATED`,
         detail: event.detail,
       }));
     }

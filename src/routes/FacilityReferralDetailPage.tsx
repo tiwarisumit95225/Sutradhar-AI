@@ -3,17 +3,18 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Card, OfflineStatus, PatientIdentity, PrimaryButton, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
 import HandshakeVerificationForm from '../components/facility/HandshakeVerificationForm';
 import { useShell } from '../context/ShellContext';
-import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../data/synthetic';
+import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS } from '../data/synthetic';
 import { getFacilityById } from '../data/synthetic/facilities';
 import { evaluateCareGaps } from '../rules/careGapEngine';
 import { createInitialReferralSnapshot, getCareReceivedEvidence, getClosureEvidence, getNextReferralStep, getReferralLifecycleLabel, hasHandshakeVerification, isJourneyMilestoneComplete } from '../rules/referralLifecycle';
 import { ROUTE_PATHS } from './paths';
+import FollowUpRecoveryPanel from '../components/referral/FollowUpRecoveryPanel';
 
 const FacilityReferralDetailPage: React.FC = () => {
   const { referralId } = useParams<'referralId'>();
   const navigate = useNavigate();
   const shell = useShell();
-  const referral = SYNTHETIC_REFERRALS.find((item) => item.id === referralId);
+  const referral = shell.referrals.find((item) => item.id === referralId);
   const patient = referral && SYNTHETIC_BENEFICIARIES.find((item) => item.id === referral.beneficiaryId);
   const facility = referral && getFacilityById(referral.destinationFacilityId);
 
@@ -26,7 +27,7 @@ const FacilityReferralDetailPage: React.FC = () => {
 
   const lifecycle = shell.referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral);
   const handshakeVerified = hasHandshakeVerification(referral, lifecycle);
-  const engineResult = evaluateCareGaps({ beneficiaries: SYNTHETIC_BENEFICIARIES, careGaps: SYNTHETIC_CARE_GAPS, referrals: SYNTHETIC_REFERRALS, referralLifecycle: shell.referralLifecycle }).find((result) => result.referral?.id === referral.id);
+  const engineResult = evaluateCareGaps({ beneficiaries: SYNTHETIC_BENEFICIARIES, careGaps: SYNTHETIC_CARE_GAPS, referrals: shell.referrals, referralLifecycle: shell.referralLifecycle, followUps: shell.followUps }).find((result) => result.referral?.id === referral.id);
   const lifecycleVariant = lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'success' : lifecycle.state === 'TIMEOUT' ? 'critical' : lifecycle.state === 'REACH_PENDING' ? 'warning' : 'primary';
   const careEvidence = getCareReceivedEvidence(lifecycle, referral.id);
   const closureEvidence = getClosureEvidence(lifecycle, referral.id);
@@ -86,6 +87,7 @@ const FacilityReferralDetailPage: React.FC = () => {
           {handshakeVerified && lifecycle.state === 'REACHED' && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-body-sm text-on-tertiary-fixed-variant">The synthetic handshake is recorded in shared referral lifecycle state. Arrival only; care received is a separate step.</p>}
           {lifecycle.state === 'REACHED' && !handshakeVerified && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-body-sm text-on-tertiary-fixed-variant">Reach was simulated earlier. Handshake credentials have not been checked.</p>}
           {lifecycle.state === 'TIMEOUT' && <p role="status" className="mt-space-sm rounded-lg bg-error-container p-space-sm font-body-sm text-body-sm text-on-error-container">This referral timed out. Verification cannot reopen it.</p>}
+          <div className="mt-space-sm"><FollowUpRecoveryPanel referral={referral} careGapId={engineResult?.careGap?.id} /></div>
         </Card>
       </section>
 

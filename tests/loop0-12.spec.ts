@@ -109,7 +109,7 @@ test('Care Gap Center and Patient Profile agree, and facility directory and map 
   await expect(page.getByText('Current state', { exact: true })).toBeVisible();
   await expect(page.getByText('EVIDENCE CONFIRMED').first()).toBeVisible();
   await expect(page.getByText(/GAP-2026-081/)).toBeVisible();
-  await page.goto(patientPath);
+  await page.getByRole('button', { name: 'Open Patient Profile' }).click();
   await expect(page.getByRole('heading', { name: gapTitle })).toBeVisible();
 
   await page.goto('/frontline/facilities');
@@ -141,6 +141,70 @@ test('arrival timeout remains terminal and the engine explains the operational g
   await expect(page.getByText(/timed out before arrival was confirmed/i).first()).toBeVisible();
   await expect(page.getByText(/TIMEOUT/).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Simulate Arrival' })).toHaveCount(0);
+});
+
+test('timeout recovery starts, completes, and creates a separate pending referral cycle', async ({ page }) => {
+  await page.goto(referralPath);
+  await page.getByRole('button', { name: 'Simulate Missed Arrival' }).click();
+  await expect(page.getByText('TIMEOUT · SIMULATED', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Simulate Arrival' })).toHaveCount(0);
+  await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
+  await expect(page.getByText(/Expected reach step was not completed|Missed ANC Check/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Start Follow-up' }).click();
+  await expect(page.getByText('FOLLOW-UP IN PROGRESS · SIMULATED')).toBeVisible();
+  await page.getByRole('button', { name: 'Complete Follow-up' }).click();
+  await expect(page.getByText('FOLLOW-UP COMPLETED · SIMULATED')).toBeVisible();
+  await page.getByRole('button', { name: 'Re-refer Patient' }).click();
+  await expect(page).toHaveURL(/reReferFrom=REF-2026-00125/);
+  await expect(page.getByRole('button', { name: 'Create Re-referral' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Create Re-referral' }).click();
+  await expect(page).toHaveURL(/REF-2026-00125-R1$/);
+  await expect(page.getByText('REACH PENDING · SIMULATED STATE')).toBeVisible();
+
+  await page.getByRole('navigation').getByRole('button', { name: /Dashboard/ }).click();
+  await page.getByRole('button', { name: "Continue Sunita's Case" }).click();
+  await expect(page.getByText('REF-2026-00125-R1').first()).toBeVisible();
+  await expect(page.getByText('REF-2026-00125 · simulated event · no timestamp recorded').first()).toBeVisible();
+  await expect(page.getByText('REF-2026-00125-R1 · simulated event · no timestamp recorded')).toHaveCount(0);
+  await expect(page.getByText('FOLLOW-UP COMPLETED').first()).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
+  await expect(page.getByText(/Referral timed out before arrival was confirmed/i).first()).toBeVisible();
+  await expect(page.getByText(/FOLLOW UP COMPLETED/).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Simulate Arrival' })).toHaveCount(0);
+});
+
+test('follow-up controls fit mobile, tablet, and desktop viewports', async ({ page }) => {
+  await page.goto(referralPath);
+  await page.getByRole('button', { name: 'Simulate Missed Arrival' }).click();
+  for (const viewport of [{ width: 390, height: 780 }, { width: 768, height: 780 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    if (viewport.width === 390) await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
+    const followUp = page.getByRole('button', { name: 'Start Follow-up' });
+    await followUp.scrollIntoViewIfNeeded();
+    await expect(followUp).toBeVisible();
+    const dimensions = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+    expect(dimensions.document).toBeLessThanOrEqual(viewport.width);
+    expect(dimensions.body).toBeLessThanOrEqual(viewport.width);
+    const controlBox = await followUp.boundingBox();
+    const navBox = await page.locator('nav').boundingBox();
+    expect(controlBox).not.toBeNull();
+    expect(navBox).not.toBeNull();
+    expect(controlBox!.y + controlBox!.height).toBeLessThanOrEqual(navBox!.y + 1);
+  }
+  await page.getByRole('button', { name: 'Start Follow-up' }).click();
+  await page.getByRole('button', { name: 'Complete Follow-up' }).click();
+  for (const viewport of [{ width: 390, height: 780 }, { width: 768, height: 780 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByRole('heading', { name: /Follow-up playbook/ })).toBeVisible();
+    const reRefer = page.getByRole('button', { name: 'Re-refer Patient' });
+    await expect(reRefer).toHaveAccessibleName('local_hospital Re-refer Patient');
+    await reRefer.scrollIntoViewIfNeeded();
+    const reReferBox = await reRefer.boundingBox();
+    const navBox = await page.locator('nav').boundingBox();
+    expect(reReferBox).not.toBeNull();
+    expect(navBox).not.toBeNull();
+    expect(reReferBox!.y + reReferBox!.height).toBeLessThanOrEqual(navBox!.y + 1);
+  }
 });
 
 test('handshake and complete cross-role golden path share lifecycle and evidence', async ({ page }) => {

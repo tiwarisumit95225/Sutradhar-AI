@@ -14,12 +14,12 @@ import {
   SYNTHETIC_BENEFICIARIES,
   SYNTHETIC_CARE_GAPS,
   getFacilityById,
-  SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
 import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
 import { createInitialReferralSnapshot, getClosureEvidence, getNextReferralStep, getReferralLifecycleLabel, isJourneyMilestoneComplete } from '../rules/referralLifecycle';
 import { useShell } from '../context/ShellContext';
 import { ROUTE_PATHS } from './paths';
+import FollowUpRecoveryPanel from '../components/referral/FollowUpRecoveryPanel';
 
 const JOURNEY_STAGES = [
   { label: 'SCREEN', milestone: 'SCREENED' },
@@ -71,17 +71,17 @@ const PatientProfilePage: React.FC = () => {
 
   if (!patient) return <PatientNotFound patientId={patientId} />;
 
-  const referral = SYNTHETIC_REFERRALS.find(
-    (record) => record.beneficiaryId === patient.id
-  );
+  const patientReferrals = shell.referrals.filter((record) => record.beneficiaryId === patient.id);
+  const referral = patientReferrals[patientReferrals.length - 1];
   const lifecycle = referral
     ? shell.referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral)
     : undefined;
   const [activeCareGapResult] = getCareGapsForBeneficiary({
     beneficiaries: SYNTHETIC_BENEFICIARIES,
     careGaps: SYNTHETIC_CARE_GAPS,
-    referrals: SYNTHETIC_REFERRALS,
+    referrals: shell.referrals,
     referralLifecycle: shell.referralLifecycle,
+    followUps: shell.followUps,
   }, patient.id);
   const activeCareGap = activeCareGapResult?.careGap;
   const facility = referral ? getFacilityById(referral.destinationFacilityId) : undefined;
@@ -133,6 +133,11 @@ const PatientProfilePage: React.FC = () => {
       </Card>
 
       <section aria-label="Current care state">
+        {patientReferrals.map((historicalReferral) => {
+          const historicalLifecycle = shell.referralLifecycle[historicalReferral.id] ?? createInitialReferralSnapshot(historicalReferral);
+          const recovery = shell.followUps[historicalReferral.id];
+          return historicalLifecycle.state === 'TIMEOUT' && <div key={historicalReferral.id} className="mb-space-sm"><FollowUpRecoveryPanel referral={historicalReferral} careGapId={recovery?.careGapId ?? activeCareGap?.id} /></div>;
+        })}
         <SectionHeader
           title="Current Care State"
           subtitle={currentMilestoneLabel ?? 'Screening recorded'}
@@ -359,6 +364,14 @@ const PatientProfilePage: React.FC = () => {
                 </div>
               </li>
             ))}
+            {patientReferrals.flatMap((item) => {
+              const oldLifecycle = shell.referralLifecycle[item.id] ?? createInitialReferralSnapshot(item);
+              const recovery = shell.followUps[item.id];
+              return [
+                ...(oldLifecycle.state === 'TIMEOUT' ? [{ id: `${item.id}-timeout-history`, referralId: item.id, event: 'TIMEOUT', detail: 'Historical referral timed out before arrival was confirmed.' }] : []),
+                ...(recovery?.events ?? []).map((event) => ({ ...event, referralId: item.id })),
+              ].map((event) => <li key={event.id} className="flex gap-space-sm border-l-2 border-secondary pl-space-sm"><div className="min-w-0"><span className="font-code-xs text-code-xs text-on-surface-variant">{event.referralId} · simulated event · no timestamp recorded</span><p className="font-body-sm text-body-sm font-semibold text-on-surface">{event.event.replace(/_/g, ' ')}</p><p className="font-body-sm text-body-sm text-on-surface-variant">{event.detail}</p></div></li>);
+            })}
             {lifecycle && (
               <li className="flex gap-space-sm border-l-2 border-error pl-space-sm">
                 <div className="min-w-0">

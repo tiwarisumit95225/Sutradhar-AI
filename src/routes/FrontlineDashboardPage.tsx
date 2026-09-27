@@ -15,8 +15,6 @@ import {
   SYNTHETIC_BENEFICIARIES,
   SYNTHETIC_CARE_GAPS,
   getFacilityById,
-  SYNTHETIC_METRICS,
-  SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
 import { DEMO_PATIENT_ID, ROUTE_PATHS } from './paths';
 import { createInitialReferralSnapshot, getClosureEvidence, getReferralLifecycleLabel, isJourneyMilestoneComplete } from '../rules/referralLifecycle';
@@ -39,28 +37,27 @@ const FrontlineDashboardPage: React.FC = () => {
 
   if (!sunita) return null;
 
-  const careGapResults = evaluateCareGaps({ beneficiaries: SYNTHETIC_BENEFICIARIES, careGaps: SYNTHETIC_CARE_GAPS, referrals: SYNTHETIC_REFERRALS, referralLifecycle: shell.referralLifecycle });
+  const careGapResults = evaluateCareGaps({ beneficiaries: SYNTHETIC_BENEFICIARIES, careGaps: SYNTHETIC_CARE_GAPS, referrals: shell.referrals, referralLifecycle: shell.referralLifecycle, followUps: shell.followUps });
   const sunitaCareGaps = careGapResults.filter((result) => result.beneficiary.id === sunita.id);
-  const sunitaReferral = SYNTHETIC_REFERRALS.find(
-    (referral) => referral.beneficiaryId === sunita.id
-  );
+  const sunitaReferrals = shell.referrals.filter((referral) => referral.beneficiaryId === sunita.id);
+  const sunitaReferral = sunitaReferrals[sunitaReferrals.length - 1];
   const destinationFacility = sunitaReferral
     ? getFacilityById(sunitaReferral.destinationFacilityId)
     : undefined;
   const referralLifecycle = sunitaReferral
     ? shell.referralLifecycle[sunitaReferral.id] ?? createInitialReferralSnapshot(sunitaReferral)
     : undefined;
-  const followUpMetric = SYNTHETIC_METRICS.find(
-    (metric) => metric.id === 'field-followups'
-  );
+  const followUpDueCount = Object.values(shell.followUps).filter((item) => item.status === 'REQUIRED' || item.status === 'IN_PROGRESS').length
+    + shell.referrals.filter((item) => shell.referralLifecycle[item.id]?.state === 'TIMEOUT' && !shell.followUps[item.id]).length;
+  const reReferralCount = shell.referrals.filter((item) => Boolean(item.sourceReferralId)).length;
   const criticalGapCount = sunitaCareGaps.filter((result) => result.status === 'CONFIRMED').length;
-  const awaitingArrivalCount = SYNTHETIC_REFERRALS.filter(
+  const awaitingArrivalCount = shell.referrals.filter(
     (referral) => {
       const state = shell.referralLifecycle[referral.id]?.state ?? createInitialReferralSnapshot(referral).state;
       return state === 'REFERRED' || state === 'REACH_PENDING';
     }
   ).length;
-  const closurePendingCount = SYNTHETIC_REFERRALS.filter(
+  const closurePendingCount = shell.referrals.filter(
     (referral) => shell.referralLifecycle[referral.id]?.state === 'CARE_RECEIVED'
   ).length;
   const closureEvidence = sunitaReferral && referralLifecycle ? getClosureEvidence(referralLifecycle, sunitaReferral.id) : undefined;
@@ -77,7 +74,7 @@ const FrontlineDashboardPage: React.FC = () => {
     },
     {
       label: 'Follow-up due',
-      count: followUpMetric?.count ?? 0,
+      count: followUpDueCount,
       icon: 'pending_actions',
       variant: 'default' as const,
       status: 'DUE',
@@ -104,7 +101,7 @@ const FrontlineDashboardPage: React.FC = () => {
     },
     {
       label: 'Active referrals',
-      count: SYNTHETIC_REFERRALS.filter((referral) => {
+      count: shell.referrals.filter((referral) => {
         const state = shell.referralLifecycle[referral.id]?.state ?? createInitialReferralSnapshot(referral).state;
         return state !== 'CLOSED' && state !== 'TIMEOUT';
       }).length,
@@ -115,6 +112,11 @@ const FrontlineDashboardPage: React.FC = () => {
       to: ROUTE_PATHS.frontlineReferral(sunitaReferral?.id ?? ''),
     },
   ];
+  metrics.push({
+    label: 'Re-referrals', count: reReferralCount, icon: 'forward_media', variant: 'default' as const,
+    status: 'NEW ATTEMPTS', statusVariant: 'primary' as const,
+    to: ROUTE_PATHS.frontlinePatient(sunita.id),
+  });
 
   const secondaryCases = SYNTHETIC_BENEFICIARIES.filter(
     (beneficiary) => beneficiary.id !== sunita.id

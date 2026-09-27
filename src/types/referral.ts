@@ -47,7 +47,8 @@ export interface HandshakeToken {
   issuingAshaId: string;
   destinationFacilityId: string;
   targetDesk: string; // e.g. "OPD Desk 2 (Dr. M. Verma)"
-  generatedAt: string;
+  /** Omitted for re-referrals created without a simulated issuance timestamp. */
+  generatedAt?: string;
   smsDispatchStatus: 'SENT' | 'DELIVERED' | 'PENDING';
   arrivalAcknowledged: boolean; // REACH = TRUE
   acknowledgedAt?: string;
@@ -65,4 +66,36 @@ export interface ReferralRecord {
   remainingKm: number;
   /** Optional during migration; derived from existing milestone/handshake fields when absent. */
   lifecycleState?: ReferralLifecycleState;
+  /** Links a synthetic retry to its historical failed referral without replacing it. */
+  sourceReferralId?: string;
+  sourceCareGapId?: string;
+}
+
+export type FollowUpStatus = 'REQUIRED' | 'IN_PROGRESS' | 'COMPLETED';
+export type FollowUpAction = 'REVIEW_AND_REENGAGE';
+export type FollowUpEventType = 'FOLLOW_UP_STARTED' | 'FOLLOW_UP_COMPLETED' | 'RE_REFERRAL_CREATED';
+
+export interface SyntheticFollowUpEvent {
+  id: string;
+  referralId: string;
+  patientId: string;
+  careGapId?: string;
+  action: FollowUpAction;
+  assignedWorker: string;
+  status: FollowUpStatus;
+  event: FollowUpEventType;
+  synthetic: true;
+  detail: string;
+}
+
+export interface SyntheticFollowUp {
+  referralId: string;
+  patientId: string;
+  careGapId?: string;
+  action: FollowUpAction;
+  assignedWorker: string;
+  status: FollowUpStatus;
+  synthetic: true;
+  events: SyntheticFollowUpEvent[];
+  reReferralId?: string;
 }

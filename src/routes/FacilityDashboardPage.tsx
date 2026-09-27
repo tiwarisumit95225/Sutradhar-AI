@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, OfflineStatus, PatientIdentity, ReferralStatusBadge, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
 import HandshakeVerificationForm from '../components/facility/HandshakeVerificationForm';
 import { useShell } from '../context/ShellContext';
-import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../data/synthetic';
+import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS } from '../data/synthetic';
 import { createInitialReferralSnapshot, getReferralLifecycleLabel, hasHandshakeVerification } from '../rules/referralLifecycle';
 import { evaluateCareGaps } from '../rules/careGapEngine';
 import { matchesFacilityReferralFilter, resolveFacilityContext, type FacilityReferralFilter } from './facilityDashboardData';
@@ -21,7 +21,7 @@ const FacilityDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FacilityReferralFilter>('ALL');
   const facility = resolveFacilityContext();
-  const incoming = facility ? SYNTHETIC_REFERRALS.filter((referral) => referral.destinationFacilityId === facility.id) : [];
+  const incoming = facility ? shell.referrals.filter((referral) => referral.destinationFacilityId === facility.id) : [];
   const records = incoming.map((referral) => {
     const patient = SYNTHETIC_BENEFICIARIES.find((item) => item.id === referral.beneficiaryId);
     const lifecycle = shell.referralLifecycle[referral.id] ?? createInitialReferralSnapshot(referral);
@@ -30,9 +30,10 @@ const FacilityDashboardPage: React.FC = () => {
   const careGaps = useMemo(() => evaluateCareGaps({
     beneficiaries: SYNTHETIC_BENEFICIARIES,
     careGaps: SYNTHETIC_CARE_GAPS,
-    referrals: SYNTHETIC_REFERRALS,
+    referrals: shell.referrals,
     referralLifecycle: shell.referralLifecycle,
-  }), [shell.referralLifecycle]);
+    followUps: shell.followUps,
+  }), [shell.referralLifecycle, shell.referrals, shell.followUps]);
   const actionIds = new Set(careGaps.map((item) => item.referral?.id).filter(Boolean));
   const visible = records.filter((item) => filter === 'ACTION'
     ? item.lifecycle.state === 'TIMEOUT' || item.lifecycle.state === 'CARE_RECEIVED' || actionIds.has(item.referral.id)
@@ -97,6 +98,7 @@ const FacilityDashboardPage: React.FC = () => {
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-space-xs">
                   <span className="break-all font-code-sm text-code-sm font-bold text-primary">{referral.id}</span>
                   <ReferralStatusBadge status={lifecycle.state === 'REACHED' || lifecycle.state === 'CARE_RECEIVED' || lifecycle.state === 'CLOSED' ? 'ARRIVED' : lifecycle.state === 'TIMEOUT' ? 'AWAITING_ARRIVAL' : lifecycle.state === 'REFERRED' ? 'DISPATCHED' : 'IN_TRANSIT'} label={lifecycle.state === 'REACHED' ? 'REACH VERIFIED · SIMULATED' : `${getReferralLifecycleLabel(lifecycle.state)} · SIMULATED`} />
+                  {shell.followUps[referral.id] && <StatusBadge label={`FOLLOW-UP ${shell.followUps[referral.id].status.replace('_', ' ')} · SIMULATED`} variant={shell.followUps[referral.id].status === 'COMPLETED' ? 'success' : 'warning'} />}
                 </div>
                 <PatientIdentity fullName={patient.fullName} age={patient.age} gender={patient.gender} syntheticId={patient.id} village={patient.village} assignedAshaName={patient.assignedAshaName} />
                 <dl className="grid min-w-0 grid-cols-1 gap-space-xs rounded-lg bg-surface-container-low p-space-sm sm:grid-cols-2">
