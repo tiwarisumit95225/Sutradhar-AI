@@ -22,6 +22,11 @@ export interface Beneficiary {
   age: number;
   gender: 'FEMALE' | 'MALE' | 'OTHER';
   village: string;
+  /** Synthetic map point for prototype visualization; never a real beneficiary location. */
+  syntheticCoordinates?: {
+    latitude: number;
+    longitude: number;
+  };
   section: string;
   assignedAshaName: string;
   assignedAshaContact: string;

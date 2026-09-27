@@ -13,6 +13,7 @@ export const SYNTHETIC_BENEFICIARIES: Beneficiary[] = [
     age: 42,
     gender: 'FEMALE',
     village: 'Kalyanpur Village',
+    syntheticCoordinates: { latitude: 23.000, longitude: 78.000 },
     section: 'RAMPUR SEC-A',
     assignedAshaName: 'Meena Bai',
     assignedAshaContact: '+91 98XXX-XX412',

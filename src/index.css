@@ -37,3 +37,46 @@
 ::-webkit-scrollbar {
   display: none;
 }
+
+.facility-map-pin,
+.facility-map-patient {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  color: #ffffff;
+  font: 700 14px/1 'Public Sans', sans-serif;
+  background: #0037b0;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 5px rgb(11 28 48 / 45%);
+}
+
+.facility-map-pin-selected {
+  background: #005022;
+  outline: 3px solid #95f8a7;
+}
+
+.facility-map-pin-recommended:not(.facility-map-pin-selected) {
+  background: #1d4ed8;
+  outline: 3px solid #d3e4fe;
+}
+
+.facility-map-patient {
+  background: #ba1a1a;
+  border-radius: 8px;
+  transform: rotate(45deg);
+}
+
+.facility-map-patient span {
+  transform: rotate(-45deg);
+}
+
+.leaflet-container {
+  z-index: 0;
+  font-family: 'Public Sans', sans-serif;
+}
+
+.leaflet-control-zoom a {
+  min-width: 40px;
+  min-height: 40px;
+  line-height: 40px !important;
+}

@@ -15,6 +15,8 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     availability: 'AVAILABLE',
     stockConfidence: 'MEDIUM',
     availableServices: ['Blood pressure screening', 'Rapid diagnostic testing'],
+    latitude: 22.991,
+    longitude: 78.012,
     specialistsOnDuty: ['Meena Bai (ASHA)', 'Kavita Sharma (ANM)'],
     diagnosticStock: [
       { itemName: 'Rapid Diagnostic Strips', isAvailable: true },
@@ -33,6 +35,8 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     availability: 'LIMITED',
     stockConfidence: 'LOW',
     availableServices: ['General OPD', 'Blood pressure screening'],
+    latitude: 23.035,
+    longitude: 78.042,
     warningAlert: 'CBC No Reagents • Magnesium Sulfate Out of Stock',
     specialistsOnDuty: ['Medical Officer (General OPD)'],
     diagnosticStock: [
@@ -53,6 +57,8 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     availability: 'AVAILABLE',
     stockConfidence: 'HIGH',
     availableServices: ['Emergency obstetric care', 'Ultrasound'],
+    latitude: 23.072,
+    longitude: 78.118,
     recommendationReason: 'Active Emergency Obstetric Care • MgSO4 In Stock • Sonologist on Duty',
     specialistsOnDuty: [
       'Dr. Arvind Swaminathan (MO In-Charge)',
@@ -77,6 +83,8 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     availability: 'AVAILABLE',
     stockConfidence: 'MEDIUM',
     availableServices: ['Tertiary care', 'Blood bank'],
+    latitude: 23.215,
+    longitude: 78.305,
     recommendationReason: 'Tertiary Care Backup (High Travel Burden)',
     specialistsOnDuty: ['Full Multi-Specialty Department'],
     diagnosticStock: [

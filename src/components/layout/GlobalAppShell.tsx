@@ -10,6 +10,7 @@ export interface GlobalAppShellProps {
   subtitle?: string;
   hasBottomNav?: boolean;
   className?: string;
+  pageContentClassName?: string;
 }
 
 export const GlobalAppShell: React.FC<GlobalAppShellProps> = ({
@@ -17,6 +18,7 @@ export const GlobalAppShell: React.FC<GlobalAppShellProps> = ({
   subtitle = 'Rural Care-Gap Intelligence',
   hasBottomNav = true,
   className = '',
+  pageContentClassName = '',
 }) => {
   const shell = useShell();
 
@@ -24,7 +26,7 @@ export const GlobalAppShell: React.FC<GlobalAppShellProps> = ({
     <div className={`min-h-screen bg-surface flex flex-col w-full ${className}`}>
       <AppHeader subtitle={subtitle} />
 
-      <PageContainer hasBottomNav={hasBottomNav}>
+      <PageContainer hasBottomNav={hasBottomNav} contentClassName={pageContentClassName}>
         {children}
       </PageContainer>
 

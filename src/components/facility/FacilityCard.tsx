@@ -24,10 +24,12 @@ const AVAILABILITY_VARIANTS: Record<HealthcareFacility['availability'], 'success
 export interface FacilityCardProps {
   facility: HealthcareFacility;
   className?: string;
+  selected?: boolean;
+  onSelect?: (facilityId: string) => void;
 }
 
 /** Reusable comparison card for synthetic operational facility data. */
-export const FacilityCard: React.FC<FacilityCardProps> = ({ facility, className = '' }) => (
+export const FacilityCard: React.FC<FacilityCardProps> = ({ facility, className = '', selected = false, onSelect }) => (
   <article aria-labelledby={`facility-${facility.id}`} className="min-w-0">
     <Card
       variant={facility.isRecommended ? 'primary' : 'default'}
@@ -65,6 +67,17 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ facility, className 
           </div>
         )}
       </dl>
+
+      {onSelect && (
+        <button
+          type="button"
+          aria-pressed={selected}
+          onClick={() => onSelect(facility.id)}
+          className="mt-space-sm min-h-[48px] w-full rounded-lg border border-primary px-space-sm py-2 text-left font-label-md text-label-md font-bold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          {selected ? 'Selected referral option' : 'Select this facility'}
+        </button>
+      )}
 
       <section className="mt-space-sm" aria-label={`Services at ${facility.name}`}>
         <SectionHeader title="Available services" />

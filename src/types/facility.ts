@@ -25,6 +25,9 @@ export interface HealthcareFacility {
   /** Operational confidence in the freshness/confirmation of demo availability information. */
   stockConfidence?: StockConfidence;
   availableServices: string[];
+  /** Demonstration map point only; not a real facility address. */
+  latitude: number;
+  longitude: number;
   recommendationReason?: string;
   warningAlert?: string;
   specialistsOnDuty: string[];
