@@ -27,6 +27,7 @@ import {
 } from '../components/common';
 import type { UserRole } from '../context/ShellContext';
 import FrontlineDashboardPage from './FrontlineDashboardPage';
+import CareGapCenterPage from './CareGapCenterPage';
 import PatientProfilePage from './PatientProfilePage';
 import ScreeningPage from './ScreeningPage';
 import { ROUTE_PATHS } from './paths';
@@ -385,7 +386,7 @@ export const router = createBrowserRouter([
           { path: ROUTE_PATHS.frontlineDashboard, element: <FrontlineDashboardPage /> },
           { path: '/frontline/patient/:patientId', element: <PatientProfilePage /> },
           { path: '/frontline/screening/:patientId', element: <ScreeningPage /> },
-          { path: ROUTE_PATHS.frontlineCareGaps, element: <RoutePlaceholder title="Care Gaps" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
+          { path: ROUTE_PATHS.frontlineCareGaps, element: <CareGapCenterPage /> },
           { path: '/frontline/referral/:referralId', element: <FrontlineReferralPage /> },
           { path: '/frontline/closure/:patientId', element: <FrontlineClosurePage /> },
           { path: ROUTE_PATHS.facilityDashboard, element: <RoutePlaceholder title="Facility Dashboard" dashboardPath={ROUTE_PATHS.facilityDashboard} /> },

@@ -17,6 +17,7 @@ import {
   SYNTHETIC_FACILITIES,
   SYNTHETIC_REFERRALS,
 } from '../data/synthetic';
+import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
 import { ROUTE_PATHS } from './paths';
 
 const JOURNEY_STAGES = [
@@ -68,9 +69,12 @@ const PatientProfilePage: React.FC = () => {
 
   if (!patient) return <PatientNotFound patientId={patientId} />;
 
-  const activeCareGap = SYNTHETIC_CARE_GAPS.find(
-    (careGap) => careGap.beneficiaryId === patient.id && careGap.status !== 'CLOSED'
-  );
+  const [activeCareGapResult] = getCareGapsForBeneficiary({
+    beneficiaries: SYNTHETIC_BENEFICIARIES,
+    careGaps: SYNTHETIC_CARE_GAPS,
+    referrals: SYNTHETIC_REFERRALS,
+  }, patient.id);
+  const activeCareGap = activeCareGapResult?.careGap;
   const referral = SYNTHETIC_REFERRALS.find(
     (record) => record.beneficiaryId === patient.id
   );
@@ -168,8 +172,8 @@ const PatientProfilePage: React.FC = () => {
           <Card variant="alert" padding="md" className="gap-space-sm">
             <div className="flex flex-wrap items-center justify-between gap-space-xs">
               <CareGapBadge
-                label={activeCareGap.status.replace('_', ' ')}
-                isExpired={activeCareGap.status === 'EXPIRED'}
+                label={activeCareGapResult?.status ?? activeCareGap.status.replace('_', ' ')}
+                isExpired={activeCareGapResult?.status === 'CONFIRMED'}
               />
               <StatusBadge label={`${patient.urgencyTier} PRIORITY`} variant="critical" />
             </div>
@@ -185,6 +189,8 @@ const PatientProfilePage: React.FC = () => {
               <span className="font-label-sm text-label-sm text-on-surface-variant">
                 Operational explanation
               </span>
+              {activeCareGapResult && <p className="mt-space-xs font-body-sm text-body-sm font-semibold text-primary">{activeCareGapResult.reasonCode} · {activeCareGapResult.confidence}</p>}
+              {activeCareGapResult && <p className="mt-space-xs font-body-sm text-body-sm text-on-surface">{activeCareGapResult.explanation}</p>}
               <ul className="mt-space-xs list-disc space-y-1 pl-5 font-body-sm text-body-sm text-on-surface">
                 {activeCareGap.explanation.rootCauseFactors.map((factor) => (
                   <li key={factor}>{factor}</li>
