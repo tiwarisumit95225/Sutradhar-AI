@@ -74,6 +74,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
 
   return (
     <nav
+      aria-label="Main navigation"
       className={`fixed inset-x-0 bottom-0 z-50 pb-safe bg-surface-container-lowest border-t border-outline-variant/30 shadow-[0_-2px_12px_rgba(0,0,0,0.03)] ${className}`}
     >
       <div className="h-16 px-space-sm flex items-center justify-around max-w-screen-xl mx-auto">
@@ -84,7 +85,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               key={tab.id}
               type="button"
               onClick={() => handleTabChange(tab.id)}
-              className={`flex flex-1 min-w-0 min-h-[48px] flex-col items-center justify-center gap-0.5 py-1 cursor-pointer transition-colors relative ${
+              aria-current={isActive ? 'page' : undefined}
+              aria-label={tab.label}
+              className={`flex flex-1 min-w-0 min-h-[48px] flex-col items-center justify-center gap-0.5 py-1 cursor-pointer transition-colors relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary ${
                 isActive
                   ? 'text-primary'
                   : 'text-secondary hover:text-on-surface'
@@ -92,17 +95,17 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             >
               {isActive ? (
                 <div className="w-10 h-7 rounded-full bg-primary-container/15 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[20px]">
+                  <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
                     {tab.icon}
                   </span>
                 </div>
               ) : (
                 <div className="w-10 h-7 flex items-center justify-center relative">
-                  <span className="material-symbols-outlined text-[20px]">
+                  <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
                     {tab.icon}
                   </span>
                   {tab.badge && tab.badge > 0 ? (
-                    <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-error" />
+                    <span aria-hidden="true" className="absolute top-0 right-1 w-2 h-2 rounded-full bg-error" />
                   ) : null}
                 </div>
               )}

@@ -23,7 +23,7 @@ export const PrimaryButton: React.FC<BaseButtonProps> = ({
     <button
       type="button"
       disabled={disabled || isLoading}
-      className={`min-h-[48px] px-space-md py-3 rounded-lg bg-primary text-on-primary font-label-md text-label-md font-bold flex items-center justify-center gap-2 shadow-sm hover:opacity-95 active:bg-on-primary-fixed-variant active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+      className={`min-h-[48px] px-space-md py-3 rounded-lg bg-primary text-on-primary font-label-md text-label-md font-bold flex items-center justify-center gap-2 shadow-sm hover:opacity-95 active:bg-on-primary-fixed-variant active:scale-[0.99] transition-all cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed ${
         isFullWidth ? 'w-full' : ''
       } ${className}`}
       {...props}
@@ -57,7 +57,7 @@ export const SecondaryButton: React.FC<BaseButtonProps> = ({
     <button
       type="button"
       disabled={disabled || isLoading}
-      className={`min-h-[48px] px-space-md py-3 rounded-lg bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-label-md text-label-md font-bold flex items-center justify-center gap-2 active:bg-secondary-container active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+      className={`min-h-[48px] px-space-md py-3 rounded-lg bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-label-md text-label-md font-bold flex items-center justify-center gap-2 active:bg-secondary-container active:scale-[0.99] transition-all cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed ${
         isFullWidth ? 'w-full' : ''
       } ${className}`}
       {...props}
@@ -93,7 +93,7 @@ export const ResolutionButton: React.FC<BaseButtonProps> = ({
     <button
       type="button"
       disabled={disabled || isLoading}
-      className={`min-h-[48px] px-space-md py-3 rounded-lg bg-tertiary text-on-tertiary font-label-md text-label-md font-bold flex items-center justify-center gap-2 shadow-sm hover:opacity-95 active:bg-tertiary-container active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+      className={`min-h-[48px] px-space-md py-3 rounded-lg bg-tertiary text-on-tertiary font-label-md text-label-md font-bold flex items-center justify-center gap-2 shadow-sm hover:opacity-95 active:bg-tertiary-container active:scale-[0.99] transition-all cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed ${
         isFullWidth ? 'w-full' : ''
       } ${className}`}
       {...props}
@@ -127,7 +127,7 @@ export const DestructiveButton: React.FC<BaseButtonProps> = ({
     <button
       type="button"
       disabled={disabled || isLoading}
-      className={`min-h-[48px] px-space-md py-3 rounded-xl bg-surface-container-high text-error hover:bg-error-container hover:text-on-error-container font-label-md text-label-md font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+      className={`min-h-[48px] px-space-md py-3 rounded-lg bg-surface-container-high text-error hover:bg-error-container hover:text-on-error-container font-label-md text-label-md font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed ${
         isFullWidth ? 'w-full' : ''
       } ${className}`}
       {...props}
