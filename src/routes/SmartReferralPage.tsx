@@ -4,6 +4,7 @@ import { Card, OfflineStatus, PatientIdentity, PrimaryButton, SectionHeader, Sec
 import FacilityCard from '../components/facility/FacilityCard';
 import FacilityMap from '../components/facility/FacilityMap';
 import SyntheticHandshakeQr from '../components/facility/SyntheticHandshakeQr';
+import HandshakeVerificationForm from '../components/facility/HandshakeVerificationForm';
 import { useShell } from '../context/ShellContext';
 import { getFacilities, getFacilityById, SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../data/synthetic';
 import { getCareGapsForBeneficiary } from '../rules/careGapEngine';
@@ -37,19 +38,10 @@ const SmartReferralPage: React.FC = () => {
   const options = useMemo(() => rankFacilityOptions(getFacilities(), requirements), [requirements]);
   const recommendedOption = options.find((option) => option.isSuitable) ?? options[0];
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>();
-  const [presentedReferralId, setPresentedReferralId] = useState(referral?.id ?? '');
-  const [presentedPasscode, setPresentedPasscode] = useState(referral?.handshake.tokenCode ?? '');
-  const [verificationError, setVerificationError] = useState<string>();
 
   useEffect(() => {
     setSelectedFacilityId(recommendedOption?.facility.id ?? destinationFacility?.id);
   }, [referralId, recommendedOption?.facility.id, destinationFacility?.id]);
-
-  useEffect(() => {
-    setPresentedReferralId(referral?.id ?? '');
-    setPresentedPasscode(referral?.handshake.tokenCode ?? '');
-    setVerificationError(undefined);
-  }, [referralId]);
 
   const onSelectFacility = useCallback((facilityId: string) => {
     setSelectedFacilityId(facilityId);
@@ -123,36 +115,6 @@ const SmartReferralPage: React.FC = () => {
         ? 'Referral ID and passcode copied for this synthetic demo.'
         : 'Clipboard access is unavailable. The referral ID and passcode remain visible for manual copying.',
       copied ? 'success' : 'info'
-    );
-  };
-
-  const handleVerifyHandshake = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!referral) return;
-    const result = shell.verifyReferralHandshake(referral.id, presentedReferralId, presentedPasscode);
-    if (!result) {
-      setVerificationError('Referral not found. No verification was performed.');
-      return;
-    }
-    if (!result.ok) {
-      const messages = {
-        CREDENTIALS_MISMATCH: 'The demo referral ID or passcode did not match. Referral state was not changed.',
-        REACH_PENDING_REQUIRED: 'Verification is unavailable until the referral is REACH PENDING. Referral state was not changed.',
-        REFERRAL_TIMED_OUT: 'Verification is unavailable because this referral timed out. This loop does not allow a transition back to REACHED.',
-      };
-      setVerificationError(messages[result.reason]);
-      shell.showToast('Verification failed', messages[result.reason], 'alert');
-      return;
-    }
-    setVerificationError(undefined);
-    shell.showToast(
-      result.alreadyVerified ? 'Handshake already verified' : 'Synthetic handshake verified',
-      result.alreadyVerified
-        ? 'REACH was already verified in this synthetic referral state.'
-        : result.alreadyReached
-          ? 'REACH was already recorded; the token check is now recorded in demo lifecycle history.'
-          : 'The demo credentials matched. REACH is simulated; this is not live facility verification.',
-      'success'
     );
   };
 
@@ -302,34 +264,7 @@ const SmartReferralPage: React.FC = () => {
 
                 {lifecycle.state === 'REACHED' && !handshakeVerified && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-on-tertiary-fixed-variant">REACH was already recorded through an earlier prototype simulation. The referral has passed the arrival step; handshake credentials have not yet been independently checked.</p>}
                 {!handshakeVerified && lifecycle.state !== 'TIMEOUT' && (
-                  <form className="mt-space-sm border-t border-outline-variant/30 pt-space-sm" onSubmit={handleVerifyHandshake}>
-                    <h3 className="font-label-lg text-label-lg text-on-surface">Receiving facility verification preview</h3>
-                    <p className="mt-0.5 font-body-sm text-body-sm text-on-surface-variant">Enter the synthetic referral ID and passcode. This does not authenticate a real facility or verify real attendance.</p>
-                    <div className="mt-space-sm grid min-w-0 grid-cols-1 gap-space-xs sm:grid-cols-2">
-                      <label className="min-w-0 font-label-sm text-label-sm text-on-surface">
-                        Referral token
-                        <input
-                          autoComplete="off"
-                          className="mt-1 min-h-[48px] w-full min-w-0 rounded-lg border border-outline bg-white px-space-sm font-code-sm text-code-sm text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                          value={presentedReferralId}
-                          onChange={(event) => { setPresentedReferralId(event.target.value); setVerificationError(undefined); }}
-                        />
-                      </label>
-                      <label className="min-w-0 font-label-sm text-label-sm text-on-surface">
-                        Handshake passcode
-                        <input
-                          autoComplete="off"
-                          className="mt-1 min-h-[48px] w-full min-w-0 rounded-lg border border-outline bg-white px-space-sm font-code-sm text-code-sm text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                          value={presentedPasscode}
-                          onChange={(event) => { setPresentedPasscode(event.target.value); setVerificationError(undefined); }}
-                        />
-                      </label>
-                    </div>
-                    {verificationError && <p role="alert" className="mt-space-sm rounded-lg bg-error-container p-space-sm font-body-sm text-body-sm font-semibold text-on-error-container">{verificationError.startsWith('The demo referral ID') ? 'VERIFICATION FAILED · ' : 'VERIFICATION UNAVAILABLE · '}{verificationError}</p>}
-                    <PrimaryButton className="mt-space-sm" icon="verified_user" type="submit">
-                      Verify Handshake · Simulated
-                    </PrimaryButton>
-                  </form>
+                  <HandshakeVerificationForm referral={referral} lifecycleState={lifecycle.state} />
                 )}
                 {handshakeVerified && <p role="status" className="mt-space-sm rounded-lg bg-tertiary-fixed p-space-sm font-body-sm text-on-tertiary-fixed-variant">REACH VERIFIED · The synthetic handshake was verified. Arrival only; care received is not confirmed.</p>}
                 {lifecycle.state === 'TIMEOUT' && !handshakeVerified && <p role="status" className="mt-space-sm rounded-lg bg-error-container p-space-sm font-body-sm text-on-error-container">This referral timed out. Handshake verification cannot move the lifecycle backward or reopen it in this loop.</p>}

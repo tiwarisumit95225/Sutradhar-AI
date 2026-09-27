@@ -32,6 +32,8 @@ import PatientProfilePage from './PatientProfilePage';
 import ScreeningPage from './ScreeningPage';
 import FacilityDirectoryPage from './FacilityDirectoryPage';
 import SmartReferralPage from './SmartReferralPage';
+import FacilityDashboardPage from './FacilityDashboardPage';
+import FacilityReferralDetailPage from './FacilityReferralDetailPage';
 import { ROUTE_PATHS } from './paths';
 
 /**
@@ -263,18 +265,6 @@ const FrontlineClosurePage: React.FC = () => {
   );
 };
 
-const FacilityReferralPage: React.FC = () => {
-  const { referralId } = useParams<'referralId'>();
-  return (
-    <RoutePlaceholder
-      title="Facility Referral"
-      dashboardPath={ROUTE_PATHS.facilityDashboard}
-      parameterLabel="Referral ID"
-      parameterValue={referralId}
-    />
-  );
-};
-
 const FacilityClosurePage: React.FC = () => {
   const { patientId } = useParams<'patientId'>();
   return (
@@ -380,8 +370,8 @@ export const router = createBrowserRouter([
           { path: ROUTE_PATHS.frontlineFacilities, element: <FacilityDirectoryPage /> },
           { path: '/frontline/referral/:referralId', element: <SmartReferralPage /> },
           { path: '/frontline/closure/:patientId', element: <FrontlineClosurePage /> },
-          { path: ROUTE_PATHS.facilityDashboard, element: <RoutePlaceholder title="Facility Dashboard" dashboardPath={ROUTE_PATHS.facilityDashboard} /> },
-          { path: '/facility/referral/:referralId', element: <FacilityReferralPage /> },
+          { path: ROUTE_PATHS.facilityDashboard, element: <FacilityDashboardPage /> },
+          { path: '/facility/referral/:referralId', element: <FacilityReferralDetailPage /> },
           { path: '/facility/closure/:patientId', element: <FacilityClosurePage /> },
           { path: ROUTE_PATHS.districtIntelligence, element: <RoutePlaceholder title="District Intelligence" dashboardPath={ROUTE_PATHS.frontlineDashboard} /> },
           { path: '*', element: <NotFoundPage /> },
