@@ -79,6 +79,7 @@ const CareGapCenterPage: React.FC = () => {
                   </ul>
                 </div>
                 <div className="rounded-lg bg-surface-container-low p-space-sm"><span className="font-label-sm text-label-sm font-semibold text-primary">Suggested action · human review</span><p className="mt-0.5 font-body-sm text-body-sm text-on-surface">{item.suggestedAction}</p></div>
+                {item.referral && <SecondaryButton icon="local_hospital" onClick={() => navigate(ROUTE_PATHS.frontlineReferral(item.referral!.id))}>Open Current Referral</SecondaryButton>}
                 <SecondaryButton icon="person_search" onClick={() => navigate(ROUTE_PATHS.frontlinePatient(item.beneficiary.id))}>Open Patient Profile</SecondaryButton>
                 {item.referral && item.result === 'CARE_GAP' && <FollowUpRecoveryPanel referral={item.referral} careGapId={item.careGap?.id} />}
               </Card>

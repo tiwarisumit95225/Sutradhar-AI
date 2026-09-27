@@ -132,7 +132,9 @@ test('Care Gap Center and Patient Profile agree, and facility directory and map 
   await expect(page.getByText('12.4 km')).toBeVisible();
   await expect(page.getByText('~35 min')).toBeVisible();
 
-  await page.goto(referralPath);
+  await page.goto('/frontline/care-gaps');
+  await page.getByRole('button', { name: 'Open Current Referral' }).click();
+  await expect(page).toHaveURL(/frontline\/referral\/REF-2026-00125$/);
   await expect(page.getByText('Sunita Devi').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: gapTitle })).toBeVisible();
   await expect(page.getByRole('region', { name: /Interactive map showing a synthetic patient/ })).toBeVisible();
@@ -438,7 +440,31 @@ test('PWA shell, local offline queue, core actions, refresh, and simulated recov
 });
 
 test('handshake and complete cross-role golden path share lifecycle and evidence', async ({ page }) => {
-  await page.goto(referralPath);
+  await chooseRole(page, 'Frontline Worker');
+  await expect(page).toHaveURL(/frontline\/dashboard$/);
+  await expect(page.getByText('Sunita Devi').first()).toBeVisible();
+  await page.getByRole('button', { name: "Continue Sunita's Case" }).click();
+  await expect(page.getByRole('heading', { name: /Patient Profile for Sunita Devi/ })).toBeAttached();
+  await expect(page.getByText(/42y/).first()).toBeVisible();
+  await expect(page.getByText('DEMO-00125').first()).toBeVisible();
+  await expect(page.getByText('Meena Bai').first()).toBeVisible();
+  await expect(page.getByText('REACH PENDING · SIMULATED STATE')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Open Screening Placeholder' }).click();
+  await expect(page.getByRole('heading', { name: 'Screening for Sunita Devi' })).toBeAttached();
+  await expect(page.getByText('BASELINE DEVELOPING').first()).toBeVisible();
+  await expect(page.getByText('142/92 mmHg').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Save Screening' }).click();
+  await expect(page.getByRole('button', { name: 'Saved for This Session' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to Patient Profile' }).click();
+  await expect(page).toHaveURL(/frontline\/patient\/DEMO-00125$/);
+  await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
+  await expect(page.getByRole('heading', { name: gapTitle })).toBeVisible();
+  await expect(page.getByText('EVIDENCE CONFIRMED').first()).toBeVisible();
+  await expect(page.getByText('REFERRAL_ARRIVAL_NOT_CONFIRMED').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Open Current Referral' }).click();
+  await expect(page).toHaveURL(/frontline\/referral\/REF-2026-00125$/);
+
   await expect(page.getByText('REF-2026-00125', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('SH-28491', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Copy Token' })).toBeVisible();
@@ -453,6 +479,9 @@ test('handshake and complete cross-role golden path share lifecycle and evidence
   await page.getByLabel('Handshake passcode').fill('SH-28491');
   await page.getByRole('button', { name: 'Verify Handshake · Simulated' }).click();
   await expect(page.getByText(/REACH VERIFIED · The synthetic handshake was verified/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Record Care Received · Simulated' })).toHaveCount(0);
+  await page.getByRole('navigation').getByRole('button', { name: 'Dashboard' }).click();
+  await expect(page.getByText('REACHED · SIMULATED').first()).toBeVisible();
 
   await switchRole(page, 'Facility (Clinician)');
   await expect(page.getByRole('heading', { name: 'CHC Bikrampur' })).toBeVisible();
@@ -482,6 +511,9 @@ test('handshake and complete cross-role golden path share lifecycle and evidence
   await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
   await expect(page.getByRole('heading', { name: gapTitle })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /No supported care gaps/ })).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: 'District Intel' }).click();
+  await expect(page.locator('[aria-label="Active Care Gaps: 0"]')).toBeVisible();
+  await expect(page.locator('[aria-label="Current Referrals: 0"]')).toBeVisible();
 });
 
 test('responsive primary screens fit and their key controls clear the fixed navigation', async ({ page }) => {
