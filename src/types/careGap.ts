@@ -24,7 +24,7 @@ export interface TimelineEvent {
 
 export interface OperationalExplanation {
   detectedSignal: string;
-  predictedConsequence: string;
+  operationalContext: string;
   rootCauseFactors: string[];
   evidenceTrail: TimelineEvent[];
 }

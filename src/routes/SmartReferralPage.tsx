@@ -51,11 +51,13 @@ const SmartReferralPage: React.FC = () => {
     matchedSignals: [
       ...requirements.services.filter((signal) => !recommendedOption.missingServices.includes(signal)).map((signal) => `Listed service: ${signal}`),
       ...requirements.diagnostics.filter((signal) => !recommendedOption.missingDiagnostics.includes(signal)).map((signal) => `Available diagnostic: ${signal}`),
+      ...requirements.medicationStock.filter((signal) => !recommendedOption.missingMedicationStock.includes(signal)).map((signal) => `Medication stock listed available: ${signal}`),
       ...(recommendedOption.operationallyAvailable ? ['Facility is not marked unavailable in the synthetic record'] : []),
     ],
     missingSignals: [
       ...recommendedOption.missingServices.map((signal) => `Missing service: ${signal}`),
       ...recommendedOption.missingDiagnostics.map((signal) => `Missing diagnostic: ${signal}`),
+      ...recommendedOption.missingMedicationStock.map((signal) => `Medication stock not listed available: ${signal}`),
       ...(!recommendedOption.operationallyAvailable ? ['Facility is marked unavailable in the synthetic record'] : []),
     ],
     sourceIds: [recommendedOption.facility.id, ...(careGapContext?.careGap ? [careGapContext.careGap.id] : [])],
@@ -345,6 +347,10 @@ const SmartReferralPage: React.FC = () => {
                   {requirements.diagnostics.map((diagnostic) => {
                     const available = selectedFacility.diagnosticStock.some((item) => item.isAvailable && item.itemName.toLocaleLowerCase().includes(diagnostic.toLocaleLowerCase()));
                     return <li key={diagnostic} className="flex gap-space-xs"><span aria-hidden="true" className={available ? 'text-tertiary' : 'text-error'}>{available ? '✓' : '×'}</span><span>{diagnostic} {available ? 'listed available' : 'not listed available'}</span></li>;
+                  })}
+                  {requirements.medicationStock.map((medication) => {
+                    const available = selectedFacility.medicationStock.some((item) => item.isAvailable && item.itemName.toLocaleLowerCase().includes(medication.toLocaleLowerCase()));
+                    return <li key={medication} className="flex gap-space-xs"><span aria-hidden="true" className={available ? 'text-tertiary' : 'text-error'}>{available ? '✓' : '×'}</span><span>{medication} stock {available ? 'listed available' : 'not listed available'} (simulated)</span></li>;
                   })}
                   <li className="flex gap-space-xs"><span aria-hidden="true" className={selectedOption.operationallyAvailable ? 'text-tertiary' : 'text-error'}>{selectedOption.operationallyAvailable ? '✓' : '×'}</span><span>Operational status: {selectedFacility.availability.toLocaleLowerCase()} (simulated)</span></li>
                   <li className="flex gap-space-xs"><span aria-hidden="true" className="text-primary">•</span><span>{selectedFacility.distanceKm.toFixed(1)} km / about {selectedFacility.estimatedTransitMinutes} min synthetic estimate</span></li>

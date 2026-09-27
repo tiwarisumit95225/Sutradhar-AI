@@ -9,12 +9,12 @@ export const SYNTHETIC_CARE_GAPS: CareGap[] = [
     beneficiaryId: 'DEMO-00125',
     expectedReferralId: 'REF-2026-00125',
     title: 'Missed ANC Check 3 & Essential Ultrasonography',
-    subType: 'Maternal High-Risk Surveillance Interval Breach',
+    subType: 'Maternal care follow-up interval overdue',
     status: 'EXPIRED',
     breachWindowHours: 48,
     explanation: {
-      detectedSignal: 'ANC-3 window breach: >14 days past recommended 24-28w interval with BP 142/92 mmHg elevation.',
-      predictedConsequence: 'High probability of unmanaged pre-eclampsia progression without parenteral Magnesium Sulfate availability.',
+      detectedSignal: 'ANC-3 follow-up window is overdue; BP 142/92 mmHg was recorded.',
+      operationalContext: 'Recorded signals require follow-up review.',
       rootCauseFactors: [
         '12 km transit barrier to CHC during intermittent morning monsoon showers',
         'Seasonal agricultural harvesting commitments in Kalyanpur village',
@@ -62,6 +62,6 @@ export const SYNTHETIC_CARE_GAPS: CareGap[] = [
         },
       ],
     },
-    recommendedAction: 'Execute urgent home visit protocol, provide transit pass voucher, re-route to CHC Bikrampur with active MgSO4 stock.',
+    recommendedAction: 'Arrange home follow-up, review transit support, and route for facility review. Medication/stock information, including Magnesium Sulfate availability, may be relevant to facility review.',
   },
 ];

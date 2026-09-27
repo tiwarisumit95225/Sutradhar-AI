@@ -16,7 +16,6 @@ export interface VitalsRecord {
 
 export interface Beneficiary {
   id: string; // e.g. "DEMO-00125"
-  syntheticAbhaId: string; // e.g. "91-8273-1928-4412"
   syntheticRchId: string; // e.g. "RCH-2026-MP-0912"
   fullName: string;
   age: number;

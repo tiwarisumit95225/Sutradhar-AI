@@ -56,7 +56,7 @@ Before any loop is marked complete, it must satisfy these five universal criteri
 ### 2.5 Feature Screen 3: Smart Referral & Hospital Routing (Loop 4)
 - [ ] 40 km Catchment Vector Map rendered via pure SVG (`viewBox="0 0 380 260"`).
 - [ ] Map contains topo grid, highway corridors, rural arterials, animated patient radar pulse, and all 5 facility markers.
-- [ ] Facility comparison stack clearly contrasts CHC Bikrampur (Recommended: MgSO4 in stock) against PHC Kalyanpur (Depleted stock callout).
+- [ ] Facility comparison stack clearly contrasts CHC Bikrampur (simulated medication stock listed) against PHC Kalyanpur (simulated stock gap).
 - [ ] Interactive facility selection updates the fixed bottom dispatch bar.
 - [ ] "Confirm & Generate Digital Token" triggers referral creation.
 
@@ -80,7 +80,7 @@ Before any loop is marked complete, it must satisfy these five universal criteri
 - [ ] Golden Demo user journey (Sunita Devi: Screening $\rightarrow$ Care Gap $\rightarrow$ Referral $\rightarrow$ Handshake $\rightarrow$ Intake) operates end-to-end without page refreshes or breaks.
 
 ### 2.9 Integrations & Simulation Layer
-- [ ] Simulated ABDM / ABHA validation adapters operational with synthetic health IDs.
+- [ ] Synthetic beneficiary identity metadata is clearly marked as demo data.
 - [ ] Simulated SMS gateway confirms dispatch to beneficiary mobile numbers.
 - [ ] Offline caching simulator demonstrates offline state persistence and deterministic resync.
 

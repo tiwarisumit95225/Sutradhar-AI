@@ -43,7 +43,6 @@ export interface MilestoneProgress {
 export interface HandshakeToken {
   tokenCode: string; // e.g. "SH-28491"
   referralId: string; // e.g. "REF-2026-00125"
-  patientAbhaId: string;
   issuingAshaId: string;
   destinationFacilityId: string;
   targetDesk: string; // e.g. "OPD Desk 2 (Dr. M. Verma)"

@@ -18,6 +18,7 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     latitude: 22.991,
     longitude: 78.012,
     specialistsOnDuty: ['Meena Bai (ASHA)', 'Kavita Sharma (ANM)'],
+    medicationStock: [],
     diagnosticStock: [
       { itemName: 'Rapid Diagnostic Strips', isAvailable: true },
       { itemName: 'BP Apparatus', isAvailable: true },
@@ -39,8 +40,10 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     longitude: 78.042,
     warningAlert: 'CBC No Reagents • Magnesium Sulfate Out of Stock',
     specialistsOnDuty: ['Medical Officer (General OPD)'],
-    diagnosticStock: [
+    medicationStock: [
       { itemName: 'Magnesium Sulfate', isAvailable: false, notes: 'Stock Depleted since 22 Sep' },
+    ],
+    diagnosticStock: [
       { itemName: 'CBC Analyzer Reagents', isAvailable: false, notes: 'Stock Out' },
       { itemName: 'Obstetric Ultrasound', isAvailable: false, notes: 'Sonologist on leave' },
     ],
@@ -59,14 +62,16 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     availableServices: ['Emergency obstetric care', 'Ultrasound'],
     latitude: 23.072,
     longitude: 78.118,
-    recommendationReason: 'Active Emergency Obstetric Care • MgSO4 In Stock • Sonologist on Duty',
+    recommendationReason: 'Emergency obstetric care listed • medication stock listed • Sonologist on Duty',
     specialistsOnDuty: [
       'Dr. Arvind Swaminathan (MO In-Charge)',
       'Dr. M. Verma (Obstetrician)',
       'Sister Saroj (Staff Nurse L&D)',
     ],
-    diagnosticStock: [
+    medicationStock: [
       { itemName: 'Magnesium Sulfate', isAvailable: true, notes: 'Ample supply (48 vials)' },
+    ],
+    diagnosticStock: [
       { itemName: 'Obstetric Ultrasound (USG)', isAvailable: true, notes: 'Active operator' },
       { itemName: 'Maternal ICU Bed', isAvailable: true, notes: '2 beds unassigned' },
     ],
@@ -87,6 +92,7 @@ export const SYNTHETIC_FACILITIES: HealthcareFacility[] = [
     longitude: 78.305,
     recommendationReason: 'Tertiary Care Backup (High Travel Burden)',
     specialistsOnDuty: ['Full Multi-Specialty Department'],
+    medicationStock: [],
     diagnosticStock: [
       { itemName: 'Tertiary NICU / Maternal ICU', isAvailable: true },
       { itemName: 'Blood Bank', isAvailable: true },
@@ -108,6 +114,8 @@ export const getFacilitiesByService = (service: string): HealthcareFacility[] =>
     facility.availableServices.some((availableService) =>
       availableService.toLocaleLowerCase().includes(normalizedService)
     ) || facility.diagnosticStock.some((item) =>
+      item.itemName.toLocaleLowerCase().includes(normalizedService) && item.isAvailable
+    ) || facility.medicationStock.some((item) =>
       item.itemName.toLocaleLowerCase().includes(normalizedService) && item.isAvailable
     )
   );

@@ -21,7 +21,7 @@ The user interface and visual language are grounded in the connected **Stitch Pr
 1. **No Backend / Client-Side State Foundation**:
    Current milestone establishes the frontend architecture foundation and synthetic demo-data structures only. No live external backend or database is connected.
 2. **Synthetic Data Isolation**:
-   All patient names, vitals, ABHA IDs, RCH tokens, and coordinates are strictly synthetic and isolated under `src/data/synthetic/`.
+   All patient names, measurements, demo identifiers, and coordinates are strictly synthetic and isolated under `src/data/synthetic/`.
 3. **Deterministic Operational Handshake Principle**:
    Digital referral tokens (`REF-2026-00125`) and numeric passcodes (`SH-28491`) acknowledge physical facility arrival (`REACH = TRUE`), explicitly separating transit verification from clinical diagnosis or cure.
 

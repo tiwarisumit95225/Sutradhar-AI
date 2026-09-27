@@ -4,19 +4,21 @@ import type { CareGapEngineResult } from './careGapEngine';
 export interface ReferralRequirements {
   services: string[];
   diagnostics: string[];
+  medicationStock: string[];
 }
 
 export interface FacilityOptionEvaluation {
   facility: HealthcareFacility;
   missingServices: string[];
   missingDiagnostics: string[];
+  missingMedicationStock: string[];
   operationallyAvailable: boolean;
   isSuitable: boolean;
 }
 
 /** Translate explicit care-gap wording into facility attributes represented by this prototype. */
 export const getReferralRequirements = (careGap?: CareGapEngineResult): ReferralRequirements => {
-  if (!careGap?.careGap) return { services: [], diagnostics: [] };
+  if (!careGap?.careGap) return { services: [], diagnostics: [], medicationStock: [] };
   const evidenceText = [
     careGap.careGap.title,
     careGap.careGap.subType,
@@ -30,8 +32,8 @@ export const getReferralRequirements = (careGap?: CareGapEngineResult): Referral
       : [],
     diagnostics: [
       ...( /ultrasound|ultrasonography/.test(evidenceText) ? ['Obstetric Ultrasound'] : []),
-      ...( /magnesium sulfate|mgso4/.test(evidenceText) ? ['Magnesium Sulfate'] : []),
     ],
+    medicationStock: /magnesium sulfate|mgso4/.test(evidenceText) ? ['Magnesium Sulfate'] : [],
   };
 };
 
@@ -58,13 +60,19 @@ export const rankFacilityOptions = (
 ): FacilityOptionEvaluation[] => facilities.map((facility) => {
   const missingServices = requirements.services.filter((service) => !serviceAvailable(facility, service));
   const missingDiagnostics = requirements.diagnostics.filter((diagnostic) => !diagnosticAvailable(facility, diagnostic));
+  const missingMedicationStock = requirements.medicationStock.filter((medication) =>
+    !facility.medicationStock.some((item) =>
+      item.isAvailable && item.itemName.toLocaleLowerCase().includes(medication.toLocaleLowerCase())
+    )
+  );
   const operationallyAvailable = facility.availability !== 'UNAVAILABLE';
   return {
     facility,
     missingServices,
     missingDiagnostics,
+    missingMedicationStock,
     operationallyAvailable,
-    isSuitable: operationallyAvailable && missingServices.length === 0 && missingDiagnostics.length === 0,
+    isSuitable: operationallyAvailable && missingServices.length === 0 && missingDiagnostics.length === 0 && missingMedicationStock.length === 0,
   };
 }).sort((left, right) => {
   // Priority is explicit: requirement coverage, availability, confidence, then synthetic trip length.

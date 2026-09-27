@@ -90,9 +90,25 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ facility, className 
 
       {facility.diagnosticStock.length > 0 && (
         <section className="mt-space-sm" aria-label={`Diagnostic availability at ${facility.name}`}>
-          <SectionHeader title="Diagnostics & supplies" />
+          <SectionHeader title="Diagnostics & equipment" />
           <ul className="space-y-1">
             {facility.diagnosticStock.slice(0, 3).map((item) => (
+              <li key={item.itemName} className="flex min-w-0 items-start justify-between gap-space-xs border-t border-outline-variant/20 pt-1 font-body-sm text-body-sm">
+                <span className="min-w-0 break-words text-on-surface">{item.itemName}</span>
+                <span className={`shrink-0 font-label-sm text-label-sm font-bold ${item.isAvailable ? 'text-tertiary' : 'text-error'}`}>
+                  {item.isAvailable ? 'Listed available' : 'Listed unavailable'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {facility.medicationStock.length > 0 && (
+        <section className="mt-space-sm" aria-label={`Medication stock information at ${facility.name}`}>
+          <SectionHeader title="Medication stock information" />
+          <ul className="space-y-1">
+            {facility.medicationStock.map((item) => (
               <li key={item.itemName} className="flex min-w-0 items-start justify-between gap-space-xs border-t border-outline-variant/20 pt-1 font-body-sm text-body-sm">
                 <span className="min-w-0 break-words text-on-surface">{item.itemName}</span>
                 <span className={`shrink-0 font-label-sm text-label-sm font-bold ${item.isAvailable ? 'text-tertiary' : 'text-error'}`}>

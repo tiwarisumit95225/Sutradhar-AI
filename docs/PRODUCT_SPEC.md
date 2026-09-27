@@ -29,7 +29,7 @@ $$\text{SCREEN} \longrightarrow \text{REFER} \longrightarrow \text{REACH} \longr
 
 1. **SCREEN**: Frontline worker (ASHA/ANM) captures patient vitals and obstetrical/clinical parameters during village home visits or sub-center clinics.
 2. **REFER**: Algorithmic decision support stratifies risk, evaluates catchment road networks and real-time facility diagnostic stock, and issues a targeted digital referral with a unique tracking token (`REF-2026-00125`).
-3. **REACH (Operational Handshake)**: Patient travels to the designated health facility. Physical arrival is verified via a 7-digit numerical passcode (`SH-28491`) or QR code scan. **`REACH = TRUE` acknowledges physical arrival only, explicitly separating transit verification from clinical diagnosis or cure.**
+3. **REACH (Operational Handshake)**: Patient travels to the designated health facility. Simulated arrival is verified with a synthetic passcode (`SH-28491`). **`REACH = TRUE` records arrival only.**
 4. **RECEIVE**: Facility clinician (Medical Officer / Specialist) receives the pre-warmed clinical dossier, conducts diagnostic testing/procedures, and initiates emergency or routine protocol.
 5. **CLOSURE CONFIRMED**: Care delivery or counter-referral is recorded, closing the loop. The frontline ASHA receives automated acknowledgement and scheduling instructions for subsequent home follow-up.
 
@@ -37,7 +37,7 @@ $$\text{SCREEN} \longrightarrow \text{REFER} \longrightarrow \text{REACH} \longr
 Care gaps are managed through the **DETECT $\rightarrow$ PREDICT $\rightarrow$ EXPLAIN $\rightarrow$ CLOSE** loop:
 
 * **DETECT**: Identifies overdue milestones (e.g., ANC-3 window breach $>14$ days past recommended 24–28w interval) and flag elevations (e.g., BP $\ge 140/90$ mmHg).
-* **PREDICT**: Quantifies risk trajectories using assistive statistical indices (e.g., high probability of pre-eclampsia progression, eclamptic seizure risk, fetal distress).
+* **SUMMARIZE**: Provides assistive wording for recorded measurements, care-gap evidence, and referral state; deterministic rules remain authoritative.
 * **EXPLAIN**: Generates transparent, human-readable operational root causes citing geographic, seasonal, and socioeconomic obstacles (e.g., 12 km transit barrier during monsoon, Tuesday bus schedule blackout, harvesting commitments).
 * **CLOSE**: Equips frontline supervisors and clinicians with actionable intervention levers (home visits, transit passes, facility alternative routing, evidence verification).
 
@@ -49,8 +49,8 @@ Sutradhar AI is architected specifically to dismantle the **Three Delays** (Thad
 
 | Delay Phase | Real-World Failure Mode | Sutradhar AI Solution |
 |---|---|---|
-| **Delay 1: Deciding to Seek Care** | Patient/family unaware of danger signs; delayed recognition of pre-eclampsia or fetal jeopardy. | **Automated Care-Gap Detection & Explanations**: Flags severe risks immediately to frontline ASHAs; provides bilingual risk explainers for counseling families during home visits. |
-| **Delay 2: Reaching Care / Transportation** | Patient sent to closest PHC only to find it out of stock, forcing secondary travel; transport unavailable. | **Stock-Aware Vector Routing**: Eliminates wasted transit by rerouting patients directly to facilities with active diagnostic consumables (e.g., CHC with MgSO4 vs PHC with stock deficit); triggers travel vouchers. |
+| **Delay 1: Deciding to Seek Care** | Patient/family may miss scheduled follow-up or face care barriers. | **Care-Gap Detection & Explanations**: Surfaces overdue follow-up evidence and operational context for worker review. |
+| **Delay 2: Reaching Care / Transportation** | Patient may reach a facility with unavailable services or stock; transport may be unavailable. | **Facility Comparison**: Shows simulated service, diagnostic, and medication-stock information for human review. |
 | **Delay 3: Receiving Adequate Care** | Patient arrives unannounced at facility; records lost; long triage queues; delays in emergency drugs. | **Digital Handshake & Pre-Warmed Dossier**: Clinicians receive incoming transit alerts before patient arrival; QR/passcode verification routes patient directly to specialized triage desk (OPD Desk 2). |
 
 ---
@@ -85,10 +85,10 @@ The reference workflow showcased in the frozen visual state follows beneficiary 
 
 1. **Initial Screening (Day 0 / 14 Sep)**:
    - Frontline ASHA Meena Bai logs routine screening for Sunita Devi (Age 26, Gravida 3 Para 2, 28 Weeks Gestation) in Kalyanpur Village.
-   - Vitals: BP 142/92 mmHg (Grade 1 Hypertension), Hb 9.8 g/dL (Moderate Anemia).
+   - Recorded measurements: BP 142/92 mmHg and hemoglobin 9.8 g/dL; both remain available for follow-up review.
 2. **Referral Dispatch (Day 2 / 16 Sep)**:
-   - Smart referral initiated. PHC Kalyanpur (6 km) is bypassed due to depleted Magnesium Sulfate and missing ultrasound technician.
-   - Routing engine selects **CHC B Bikrampur** (12.4 km, dry metalled highway, MgSO4 confirmed, Sonologist on duty).
+   - Smart referral initiated. PHC Kalyanpur (6 km) has a simulated medication-stock gap and no listed ultrasound availability.
+   - Routing engine selects **CHC B Bikrampur** (12.4 km, dry metalled highway, medication stock listed, Sonologist on duty).
    - Referral generated: `REF-2026-00125` with Handshake Passcode `SH-28491`. Dispatch SMS sent to beneficiary.
 3. **Care Gap Emergence (Day 10 / 24 Sep)**:
    - 7-day arrival window expires without facility handshake verification (`REACH = FALSE`).
@@ -99,7 +99,7 @@ The reference workflow showcased in the frozen visual state follows beneficiary 
 5. **Facility Handshake & Triage (Day 12 / 26 Sep)**:
    - Sunita arrives at CHC Bikrampur ANM triage desk.
    - Dr. Arvind verifies token `SH-28491`. Operational arrival confirmed (`REACH = TRUE`).
-   - Patient routed immediately to OPD Desk 2 (Dr. M. Verma) for Magnesium Sulfate administration and ultrasound.
+   - Patient is referred to OPD Desk 2 (Dr. M. Verma) for facility review of recorded signals, services, and stock information.
    - Closure confirmation automatically synchronizes to ASHA Meena Bai's roster.
 
 ---
@@ -124,7 +124,7 @@ To prove resilience under rugged real-world conditions, Sutradhar AI models edge
 
 > [!IMPORTANT]
 > The following boundaries are strictly enforced across the current prototype:
-> 1. **Synthetic Data Only**: All beneficiary records (Sunita Devi, Ramesh Chandra, Anjali Soren), vitals, ABHA identifiers, and phone numbers are generated mock data. No Protected Health Information (PHI) is used.
+> 1. **Synthetic Data Only**: All beneficiary records (Sunita Devi, Ramesh Chandra, Anjali Soren), measurements, demo identifiers, and phone numbers are generated mock data. No Protected Health Information (PHI) is used.
 > 2. **No Clinical Validation Claims**: Sutradhar AI is an operational triage decision-support prototype. It does not provide medical diagnoses, treatment prescriptions, or clinical validation.
 > 3. **Assistive, Non-Prescriptive AI**: All algorithmic risk models are presented as assistive operational suggestions. Deterministic business rules and mandatory human-in-the-loop clinician overrides govern all workflow milestones.
 > 4. **Simulated External Integrations**: ABDM (Ayushman Bharat Digital Mission), RCH (Reproductive and Child Health portal), and HMIS interfaces are implemented via modular simulation adapters at the prototype stage.

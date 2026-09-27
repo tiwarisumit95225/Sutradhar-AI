@@ -3,7 +3,9 @@ import { aggregateDistrictIntelligence } from '../src/rules/districtIntelligence
 import { runAiAssist } from '../src/ai/aiAssist';
 import type { AiAssistContext } from '../src/ai/aiTypes';
 import { evaluateCareGaps } from '../src/rules/careGapEngine';
+import { getReferralRequirements, rankFacilityOptions } from '../src/rules/facilitySuitability';
 import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../src/data/synthetic';
+import { getFacilities } from '../src/data/synthetic/facilities';
 
 const runtimeErrors: string[] = [];
 const referralPath = '/frontline/referral/REF-2026-00125';
@@ -113,6 +115,9 @@ test('frontline dashboard, profile, and screening retain synthetic patient conte
   await expect(page.getByText('Screening preview saved')).toBeVisible();
   await page.getByRole('button', { name: 'Continue to Patient Profile' }).click();
   await expect(page).toHaveURL(/frontline\/patient\/DEMO-00125$/);
+  const patientProfileText = await page.locator('main').innerText();
+  expect(patientProfileText).toContain('DEMO-00125');
+  expect(patientProfileText).not.toMatch(/ABHA|91-\d{4}-\d{4}-\d{4}|pre[- ]?eclampsia|preeclampsia|severe BP|moderate anemia|high probability/i);
 });
 
 test('Care Gap Center and Patient Profile agree, and facility directory and map controls work', async ({ page }) => {
@@ -135,6 +140,8 @@ test('Care Gap Center and Patient Profile agree, and facility directory and map 
   await page.goto('/frontline/care-gaps');
   await page.getByRole('button', { name: 'Open Current Referral' }).click();
   await expect(page).toHaveURL(/frontline\/referral\/REF-2026-00125$/);
+  const referralText = await page.locator('main').innerText();
+  expect(referralText).not.toMatch(/ABHA|91-\d{4}-\d{4}-\d{4}|pre[- ]?eclampsia|preeclampsia|severe BP|moderate anemia|high probability|MgSO4/i);
   await expect(page.getByText('Sunita Devi').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: gapTitle })).toBeVisible();
   await expect(page.getByRole('region', { name: /Interactive map showing a synthetic patient/ })).toBeVisible();
@@ -142,8 +149,10 @@ test('Care Gap Center and Patient Profile agree, and facility directory and map 
   await expect(page.locator('.facility-map-patient')).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'CHC Bikrampur', exact: true }).first()).toBeVisible();
   const phcCard = page.getByRole('article', { name: /PHC Kalyanpur/ });
+  await expect(phcCard.getByRole('region', { name: 'Medication stock information at PHC Kalyanpur' })).toContainText('Magnesium Sulfate');
   await phcCard.getByRole('button', { name: 'Select this facility' }).click();
   await expect(phcCard.getByRole('button', { name: 'Selected referral option' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Magnesium Sulfate stock not listed available (simulated)')).toBeVisible();
   await page.getByRole('button', { name: 'Continue with selected option' }).click();
   await expect(page.getByText('Facility option selected')).toBeVisible();
 });
@@ -261,6 +270,29 @@ test('district aggregation handles empty data without invented metrics', () => {
   expect(empty.cases).toEqual([]);
   expect(empty.reasons).toEqual([]);
   expect(empty.stages.every((stage) => stage.count === 0)).toBe(true);
+});
+
+test('synthetic identity and clinical wording stay operational, with medication stock separate from diagnostics', () => {
+  const demoPatient = SYNTHETIC_BENEFICIARIES.find((beneficiary) => beneficiary.id === 'DEMO-00125');
+  expect(demoPatient?.fullName).toBe('Sunita Devi');
+  expect(demoPatient?.age).toBe(42);
+  expect(demoPatient?.assignedAshaName).toBe('Meena Bai');
+  expect(JSON.stringify({ beneficiaries: SYNTHETIC_BENEFICIARIES, referrals: SYNTHETIC_REFERRALS })).not.toMatch(/ABHA|91-\d{4}-\d{4}-\d{4}/i);
+  const displayedSummary = [demoPatient?.riskSummary, SYNTHETIC_CARE_GAPS[0].explanation.operationalContext, SYNTHETIC_REFERRALS[0].clinicalIndication].join(' ');
+  expect(displayedSummary).not.toMatch(/pre[- ]?eclampsia|preeclampsia|severe BP|moderate anemia|high probability|diagnosis|treatment|prescription/i);
+
+  const [careGapResult] = evaluateCareGaps({ beneficiaries: SYNTHETIC_BENEFICIARIES, careGaps: SYNTHETIC_CARE_GAPS, referrals: SYNTHETIC_REFERRALS });
+  const requirements = getReferralRequirements(careGapResult);
+  expect(requirements.diagnostics).toEqual(['Obstetric Ultrasound']);
+  expect(requirements.medicationStock).toEqual(['Magnesium Sulfate']);
+  const options = rankFacilityOptions(getFacilities(), requirements);
+  const recommended = options.find(({ facility }) => facility.id === 'chc-bikrampur');
+  const limited = options.find(({ facility }) => facility.id === 'phc-kalyanpur');
+  expect(recommended?.isSuitable).toBe(true);
+  expect(recommended?.missingDiagnostics).toEqual([]);
+  expect(recommended?.missingMedicationStock).toEqual([]);
+  expect(limited?.missingDiagnostics).toEqual(['Obstetric Ultrasound']);
+  expect(limited?.missingMedicationStock).toEqual(['Magnesium Sulfate']);
 });
 
 test('AI assist uses structured local wording, preserves rule outputs, and safely handles offline/provider failure', () => {
@@ -488,6 +520,8 @@ test('handshake and complete cross-role golden path share lifecycle and evidence
   await expect(page.getByText('REF-2026-00125', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('REACH VERIFIED · SIMULATED', { exact: true }).first()).toBeVisible();
   await page.getByRole('button', { name: 'View Referral Details' }).click();
+  const facilityReferralText = await page.locator('main').innerText();
+  expect(facilityReferralText).not.toMatch(/ABHA|91-\d{4}-\d{4}-\d{4}|pre[- ]?eclampsia|preeclampsia|severe BP|moderate anemia|high probability|Magnesium Sulfate administration/i);
   await expect(page).toHaveURL(/facility\/referral\/REF-2026-00125$/);
   await expect(page.getByRole('button', { name: 'Record Care Received · Simulated' })).toBeVisible();
   await page.getByRole('button', { name: 'Record Care Received · Simulated' }).click();

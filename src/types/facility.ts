@@ -32,6 +32,7 @@ export interface HealthcareFacility {
   warningAlert?: string;
   specialistsOnDuty: string[];
   diagnosticStock: FacilityDiagnosticStock[];
+  medicationStock: FacilityDiagnosticStock[];
   coordinates: {
     x: number;
     y: number;

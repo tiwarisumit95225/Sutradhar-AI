@@ -7,7 +7,6 @@ import { Beneficiary } from '../../types';
 export const SYNTHETIC_BENEFICIARIES: Beneficiary[] = [
   {
     id: 'DEMO-00125',
-    syntheticAbhaId: '91-8273-1928-4412',
     syntheticRchId: 'RCH-2026-MP-0912',
     fullName: 'Sunita Devi',
     age: 42,
@@ -21,7 +20,7 @@ export const SYNTHETIC_BENEFICIARIES: Beneficiary[] = [
     para: 2,
     gestationalWeeks: 28,
     urgencyTier: 'CRITICAL',
-    riskSummary: 'High-Risk Pregnancy: Suspected Pre-eclampsia, Severe BP Elevation & Moderate Anemia',
+    riskSummary: 'Priority maternal follow-up requiring referral review. Recorded BP 142/92 mmHg and hemoglobin 9.8 g/dL.',
     latestVitals: {
       bloodPressureSystolic: 142,
       bloodPressureDiastolic: 92,
@@ -33,7 +32,6 @@ export const SYNTHETIC_BENEFICIARIES: Beneficiary[] = [
   },
   {
     id: 'DEMO-RAM-074',
-    syntheticAbhaId: '91-4431-7782-9901',
     syntheticRchId: 'RCH-2026-MP-1144',
     fullName: 'Ramesh Chandra',
     age: 54,
@@ -46,7 +44,7 @@ export const SYNTHETIC_BENEFICIARIES: Beneficiary[] = [
     para: 0,
     gestationalWeeks: 0,
     urgencyTier: 'MODERATE',
-    riskSummary: 'Type 2 Diabetes Default: Missed HbA1c Lab Follow-up; Med refill verified pending evidence',
+    riskSummary: 'Missed HbA1c follow-up; medication information is pending verification.',
     latestVitals: {
       bloodPressureSystolic: 130,
       bloodPressureDiastolic: 84,
@@ -56,7 +54,6 @@ export const SYNTHETIC_BENEFICIARIES: Beneficiary[] = [
   },
   {
     id: 'DEMO-RAM-091',
-    syntheticAbhaId: '91-5509-3321-7890',
     syntheticRchId: 'RCH-2026-MP-1520',
     fullName: 'Anjali Soren',
     age: 22,
@@ -69,7 +66,7 @@ export const SYNTHETIC_BENEFICIARIES: Beneficiary[] = [
     para: 0,
     gestationalWeeks: 34,
     urgencyTier: 'HIGH',
-    riskSummary: 'Primigravida 34w: Persistent oligohydramnios flag, urgent ultrasound referral pending dispatch',
+    riskSummary: 'Recorded fluid-level follow-up signal; ultrasound referral pending dispatch.',
     latestVitals: {
       bloodPressureSystolic: 124,
       bloodPressureDiastolic: 80,
