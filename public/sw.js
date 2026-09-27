@@ -34,7 +34,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     // Vite emits content-hashed assets, so an installed copy is safe to serve first offline.
     if (url.pathname.startsWith('/assets/')) {
-      const cached = await caches.match(request);
+      const cached = await caches.match(request, { ignoreVary: true });
       if (cached) return cached;
     }
     try {
@@ -42,7 +42,7 @@ self.addEventListener('fetch', (event) => {
       if (response.ok) await (await caches.open(CACHE_NAME)).put(request, response.clone());
       return response;
     } catch {
-      return (await caches.match(request)) || Response.error();
+      return (await caches.match(request, { ignoreVary: true })) || Response.error();
     }
   })());
 });

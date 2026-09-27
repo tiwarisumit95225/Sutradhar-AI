@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, OfflineStatus, PatientIdentity, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
+import { AiAssistCard, Card, OfflineStatus, PatientIdentity, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
 import { useShell } from '../context/ShellContext';
 import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, getFacilities } from '../data/synthetic';
 import { evaluateCareGaps } from '../rules/careGapEngine';
 import { aggregateDistrictIntelligence } from '../rules/districtIntelligence';
 import { createInitialReferralSnapshot, getReferralLifecycleLabel } from '../rules/referralLifecycle';
 import { ROUTE_PATHS } from './paths';
+import { runAiAssist } from '../ai/aiAssist';
 
 const FLOW_STEPS = ['EXPECTED CARE', 'GAP DETECTED', 'FOLLOW-UP / ACTION', 'RE-REFERRAL', 'CLOSURE'];
 
@@ -37,6 +38,13 @@ const DistrictIntelligencePage: React.FC = () => {
     { label: 'Re-referrals', value: district.summary.reReferralEvents, basis: 'Historical creation events in this session.' },
     { label: 'Closure Pending', value: district.summary.closurePending, basis: 'Latest referral is CARE_RECEIVED and awaits closure.' },
   ];
+  const districtAssist = runAiAssist({
+    kind: 'DISTRICT_SUMMARY',
+    activeCareGaps: district.summary.activeCareGaps,
+    reachGaps: district.summary.reachGaps,
+    followUpRequired: district.summary.followUpRequired,
+    sourceIds: ['DISTRICT_AGGREGATE', ...district.reasons.map((item) => item.reasonCode)],
+  }, { isOnline: shell.isOnline });
 
   return (
     <div className="flex w-full flex-col gap-space-md px-margin py-space-sm">
@@ -49,6 +57,8 @@ const DistrictIntelligencePage: React.FC = () => {
         </div>
         <p className="font-body-sm text-body-sm text-on-surface-variant"><strong>Represented synthetic area:</strong> {areaLabels || 'No area labels available'}. District boundaries are not represented in the demo dataset.</p>
       </header>
+
+      <AiAssistCard title="AI-ASSISTED DISTRICT SUMMARY" result={districtAssist} />
 
       <section aria-labelledby="district-metrics-heading">
         <SectionHeader title="Operational Overview" subtitle="Counts are derived from current shared session data" tag="CURRENT + SESSION EVENTS" />

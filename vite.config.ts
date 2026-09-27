@@ -15,5 +15,14 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/src/ai/') || id.endsWith('/AiAssistCard.tsx')) return 'ai-assist';
+        }
+      }
+    }
   }
 });

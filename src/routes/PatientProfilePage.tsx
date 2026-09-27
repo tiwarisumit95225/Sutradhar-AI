@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Card,
+  AiAssistCard,
   CareGapBadge,
   OfflineStatus,
   PatientIdentity,
@@ -20,6 +21,7 @@ import { createInitialReferralSnapshot, getClosureEvidence, getNextReferralStep,
 import { useShell } from '../context/ShellContext';
 import { ROUTE_PATHS } from './paths';
 import FollowUpRecoveryPanel from '../components/referral/FollowUpRecoveryPanel';
+import { runAiAssist } from '../ai/aiAssist';
 
 const JOURNEY_STAGES = [
   { label: 'SCREEN', milestone: 'SCREENED' },
@@ -94,6 +96,16 @@ const PatientProfilePage: React.FC = () => {
     ? ROUTE_PATHS.frontlineReferral(referral.id)
     : ROUTE_PATHS.frontlineCareGaps;
   const timelineEvents = activeCareGap?.explanation.evidenceTrail ?? [];
+  const patientSummary = runAiAssist({
+    kind: 'PATIENT_SUMMARY',
+    patientId: patient.id,
+    ...(lifecycle ? { lifecycleState: lifecycle.state } : {}),
+    ...(activeCareGapResult ? { expectedStep: activeCareGapResult.expectedStep } : {}),
+    currentState: activeCareGapResult?.actualState ?? (lifecycle ? getNextReferralStep(lifecycle.state) : 'No referral lifecycle is recorded.'),
+    ...(referral ? { referralId: referral.id } : {}),
+    ...(referral && shell.followUps[referral.id] ? { followUpState: shell.followUps[referral.id].status } : {}),
+    sourceIds: [patient.id, ...(activeCareGap ? [activeCareGap.id] : []), ...(referral ? [referral.id] : [])],
+  }, { isOnline: shell.isOnline });
 
   return (
     <div className="flex w-full flex-col gap-space-md px-margin py-space-sm">
@@ -195,6 +207,10 @@ const PatientProfilePage: React.FC = () => {
           </div>
         </Card>
         {closureEvidence && <Card variant="success" padding="md" className="mt-space-sm"><h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">CLOSURE CONFIRMED · SIMULATED</h2><p className="mt-space-xs font-body-sm text-body-sm text-on-surface">Evidence recorded for expected care step: {closureEvidence.expectedStep}</p><p className="font-code-xs text-code-xs text-on-surface-variant">{closureEvidence.evidenceType} · {closureEvidence.evidenceSource} · no timestamp recorded. This does not indicate cure or a clinical outcome.</p></Card>}
+      </section>
+
+      <section aria-label="AI-assisted patient summary">
+        <AiAssistCard title="AI-ASSISTED PATIENT SUMMARY" result={patientSummary} />
       </section>
 
       {activeCareGap && (

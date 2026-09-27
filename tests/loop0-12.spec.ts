@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { aggregateDistrictIntelligence } from '../src/rules/districtIntelligence';
+import { runAiAssist } from '../src/ai/aiAssist';
+import type { AiAssistContext } from '../src/ai/aiTypes';
+import { evaluateCareGaps } from '../src/rules/careGapEngine';
+import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS, SYNTHETIC_REFERRALS } from '../src/data/synthetic';
 
 const runtimeErrors: string[] = [];
 const referralPath = '/frontline/referral/REF-2026-00125';
@@ -117,7 +121,7 @@ test('Care Gap Center and Patient Profile agree, and facility directory and map 
   await expect(page.getByText('Expected step', { exact: true })).toBeVisible();
   await expect(page.getByText('Current state', { exact: true })).toBeVisible();
   await expect(page.getByText('EVIDENCE CONFIRMED').first()).toBeVisible();
-  await expect(page.getByText(/GAP-2026-081/)).toBeVisible();
+  await expect(page.getByText(/GAP-2026-081/).first()).toBeVisible();
   await page.getByRole('button', { name: 'Open Patient Profile' }).click();
   await expect(page.getByRole('heading', { name: gapTitle })).toBeVisible();
 
@@ -257,6 +261,81 @@ test('district aggregation handles empty data without invented metrics', () => {
   expect(empty.stages.every((stage) => stage.count === 0)).toBe(true);
 });
 
+test('AI assist uses structured local wording, preserves rule outputs, and safely handles offline/provider failure', () => {
+  const context: AiAssistContext = {
+    kind: 'CARE_GAP',
+    patientId: 'DEMO-00125',
+    expectedStep: 'REACH — patient reaches referred facility',
+    currentState: 'Arrival acknowledgement is missing.',
+    reasonCode: 'REFERRAL_ARRIVAL_NOT_CONFIRMED',
+    referralId: 'REF-2026-00125',
+    sourceIds: ['GAP-2026-081', 'REF-2026-00125', 'GAP-2026-081'],
+  };
+  const results = evaluateCareGaps({
+    beneficiaries: SYNTHETIC_BENEFICIARIES,
+    careGaps: SYNTHETIC_CARE_GAPS,
+    referrals: SYNTHETIC_REFERRALS,
+  });
+  const ruleSnapshot = results.map(({ status, confidence, reasonCode, priority }) => ({ status, confidence, reasonCode, priority }));
+  const local = runAiAssist(context, { isOnline: true });
+  expect(local.mode).toBe('LOCAL FALLBACK');
+  expect(local.text).toContain('Arrival acknowledgement is missing.');
+  expect(local.text).not.toMatch(/diagnosis|treatment|prognosis|medical urgency/i);
+  expect(local.sourceIds).toEqual(['GAP-2026-081', 'REF-2026-00125']);
+  expect(JSON.stringify(context)).not.toMatch(/SH-28491|tokenCode|api.?key|secret/i);
+  expect(results.map(({ status, confidence, reasonCode, priority }) => ({ status, confidence, reasonCode, priority }))).toEqual(ruleSnapshot);
+
+  let providerCalls = 0;
+  const provider = { generate: () => { providerCalls += 1; throw new Error('provider unavailable'); } };
+  const offline = runAiAssist(context, { isOnline: false, provider });
+  expect(offline.mode).toBe('LOCAL FALLBACK');
+  expect(offline.notice).toBeUndefined();
+  expect(providerCalls).toBe(0);
+
+  const failure = runAiAssist(context, { isOnline: true, provider });
+  expect(failure.mode).toBe('LOCAL FALLBACK');
+  expect(failure.notice).toBe('AI assist unavailable — using rule-based summary.');
+  expect(providerCalls).toBe(1);
+  const unsafe = runAiAssist(context, { isOnline: true, provider: { generate: () => 'This diagnosis requires treatment.' } });
+  expect(unsafe.mode).toBe('LOCAL FALLBACK');
+  expect(unsafe.text).toContain(context.currentState);
+});
+
+test('AI-assist cards show provenance across care gaps, profile, follow-up, district, and referral without overflow', async ({ page }) => {
+  for (const viewport of [{ width: 390, height: 780 }, { width: 768, height: 780 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    for (const route of ['/frontline/care-gaps', patientPath, '/district/intelligence', referralPath]) {
+      await page.goto(route);
+      const heading = route === '/frontline/care-gaps' ? 'AI-ASSISTED EXPLANATION'
+        : route === patientPath ? 'AI-ASSISTED PATIENT SUMMARY'
+          : route === '/district/intelligence' ? 'AI-ASSISTED DISTRICT SUMMARY' : 'AI-ASSISTED FACILITY CONTEXT';
+      const assist = page.getByRole('region', { name: heading }).first();
+      await expect(assist).toBeVisible();
+      await expect(assist.getByText('AI-GENERATED WORDING')).toBeVisible();
+      await expect(assist.getByText('SOURCE DATA · SYNTHETIC')).toBeVisible();
+      await expect(assist.getByText(/Critical workflow decisions remain rule-based/)).toBeVisible();
+      await expect(assist.getByText('AI-ASSISTED LOCAL FALLBACK')).toBeVisible();
+      if (route === referralPath) {
+        await expect(page.getByText('RECOMMENDED REFERRAL OPTION')).toBeVisible();
+        await expect(page.getByRole('article', { name: /CHC Bikrampur/ }).getByRole('button', { name: 'Selected referral option' })).toHaveAttribute('aria-pressed', 'true');
+      }
+      const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+      expect(dimensions.document).toBeLessThanOrEqual(viewport.width);
+      expect(dimensions.body).toBeLessThanOrEqual(viewport.width);
+    }
+  }
+
+  await page.goto(referralPath);
+  await page.getByRole('button', { name: 'Simulate Missed Arrival' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
+  const suggestion = page.getByRole('region', { name: 'AI-ASSISTED FOLLOW-UP SUGGESTION' });
+  await expect(suggestion).toBeVisible();
+  await expect(suggestion.getByText(/review referral status.*re-engage patient.*confirm next care option.*re-refer if required/i)).toBeVisible();
+  await expect(page.getByText('FOLLOW-UP REQUIRED · SIMULATED')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start Follow-up' })).toBeVisible();
+  await expect(suggestion).toContainText('REF-2026-00125');
+});
+
 test('district intelligence is responsive without overflow at mobile, tablet, and desktop sizes', async ({ page }) => {
   for (const viewport of [{ width: 390, height: 780 }, { width: 768, height: 780 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
@@ -273,8 +352,10 @@ test('district intelligence is responsive without overflow at mobile, tablet, an
 
 test('PWA shell, local offline queue, core actions, refresh, and simulated recovery work', async ({ page, context }) => {
   const apiRequests: string[] = [];
+  const aiProviderRequests: string[] = [];
   page.on('request', (request) => {
     if (new URL(request.url()).pathname.startsWith('/api/')) apiRequests.push(request.url());
+    if (/openai|anthropic|\/ai\/provider/i.test(request.url())) aiProviderRequests.push(request.url());
   });
   await page.goto('/frontline/screening/DEMO-00125');
   await expect(page.getByRole('button', { name: 'ONLINE' })).toBeVisible();
@@ -292,8 +373,12 @@ test('PWA shell, local offline queue, core actions, refresh, and simulated recov
   expect(controlledByServiceWorker).toBe(true);
   await page.reload();
   await expect(page.getByRole('heading', { name: /Screening for Sunita Devi/ })).toBeAttached();
-  const cachedFacilityChunk = await page.evaluate(async () => Boolean(await caches.match('/assets/FacilityDashboardPage-DYeECl-N.js')));
-  expect(cachedFacilityChunk).toBe(true);
+  const cachedAppAssets = await page.evaluate(async () => {
+    const manifest = await fetch('/precache-manifest.json').then((response) => response.json() as Promise<string[]>);
+    const assets = await Promise.all(manifest.map(async (asset) => [asset, Boolean(await caches.match(new Request(new URL(asset, location.origin)), { ignoreVary: true }))] as const));
+    return assets;
+  });
+  expect(cachedAppAssets.filter(([, cached]) => !cached)).toEqual([]);
   // Exercise the lazy facility route once while online, matching an installed user who has opened the app shell.
   await switchRole(page, 'Facility (Clinician)');
   await expect(page.getByRole('button', { name: 'View Referral Details' })).toBeVisible();
@@ -313,6 +398,8 @@ test('PWA shell, local offline queue, core actions, refresh, and simulated recov
   expect(storedOffline).toContain('PENDING SYNC');
   expect(storedOffline).not.toContain('SH-28491');
   expect(storedOffline).not.toContain('tokenCode');
+  const queuedOffline = JSON.parse(storedOffline);
+  expect(queuedOffline.localQueue.some((action: { type: string }) => action.type.startsWith('AI_'))).toBe(false);
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'Saved for This Session' })).toBeVisible();
@@ -321,6 +408,7 @@ test('PWA shell, local offline queue, core actions, refresh, and simulated recov
   await expect(page.getByRole('heading', { name: /Patient Profile for Sunita Devi/ })).toBeAttached();
   await page.getByRole('navigation').getByRole('button', { name: /Care Gaps/ }).click();
   await expect(page.getByRole('heading', { name: gapTitle })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'AI-ASSISTED EXPLANATION' }).getByText('AI-ASSISTED LOCAL FALLBACK')).toBeVisible();
   await page.getByRole('navigation').getByRole('button', { name: 'Referrals' }).click();
   await page.getByRole('button', { name: 'Simulate Arrival' }).click();
   await page.getByRole('button', { name: 'Verify Handshake · Simulated' }).click();
@@ -330,6 +418,7 @@ test('PWA shell, local offline queue, core actions, refresh, and simulated recov
   await page.getByRole('button', { name: 'Confirm Closure · Simulated' }).click();
   await expect(page.getByText('CLOSURE CONFIRMED · SIMULATED', { exact: true }).first()).toBeVisible();
   expect(apiRequests).toEqual([]);
+  expect(aiProviderRequests).toEqual([]);
 
   await context.setOffline(false);
   await expect(page.getByText('SYNCED', { exact: true }).first()).toBeVisible();
@@ -337,6 +426,7 @@ test('PWA shell, local offline queue, core actions, refresh, and simulated recov
   expect(storedSynced.localQueue.length).toBeGreaterThanOrEqual(5);
   expect(storedSynced.localQueue.every((action: { syncStatus: string }) => action.syncStatus === 'SYNCED')).toBe(true);
   expect(apiRequests).toEqual([]);
+  expect(aiProviderRequests).toEqual([]);
 
   for (const viewport of [{ width: 390, height: 780 }, { width: 768, height: 780 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);

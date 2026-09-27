@@ -8,3 +8,4 @@ export * from './Card';
 export * from './SectionHeader';
 export * from './PatientIdentity';
 export * from './Toast';
+export * from './AiAssistCard';

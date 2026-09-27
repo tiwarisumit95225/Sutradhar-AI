@@ -1,11 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CareGapBadge, OfflineStatus, PatientIdentity, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
+import { AiAssistCard, Card, CareGapBadge, OfflineStatus, PatientIdentity, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
 import { SYNTHETIC_BENEFICIARIES, SYNTHETIC_CARE_GAPS } from '../data/synthetic';
 import { evaluateCareGaps } from '../rules/careGapEngine';
 import { useShell } from '../context/ShellContext';
 import { ROUTE_PATHS } from './paths';
 import FollowUpRecoveryPanel from '../components/referral/FollowUpRecoveryPanel';
+import { runAiAssist } from '../ai/aiAssist';
 
 const CareGapCenterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -31,7 +32,18 @@ const CareGapCenterPage: React.FC = () => {
           </Card>
         ) : (
           <div className="flex flex-col gap-space-md">
-            {results.map((item) => (
+            {results.map((item) => {
+              const assist = runAiAssist({
+                kind: 'CARE_GAP',
+                patientId: item.beneficiary.id,
+                expectedStep: item.expectedStep,
+                currentState: item.actualState,
+                reasonCode: item.reasonCode,
+                ...(item.referral ? { referralId: item.referral.id } : {}),
+                ...(item.referral && shell.followUps[item.referral.id] ? { followUpState: shell.followUps[item.referral.id].status } : {}),
+                sourceIds: [item.id, ...item.evidence.map((source) => source.sourceId)],
+              }, { isOnline: shell.isOnline });
+              return (
               <Card key={item.id} variant={item.status === 'CONFIRMED' ? 'alert' : 'default'} padding="md" className="gap-space-sm">
                 <div className="flex flex-wrap items-center justify-between gap-space-xs">
                   <CareGapBadge label={item.result === 'CARE_GAP' ? 'CARE GAP' : 'AT RISK'} isExpired={item.status === 'CONFIRMED'} />
@@ -52,6 +64,7 @@ const CareGapCenterPage: React.FC = () => {
                   <span className="font-label-sm text-label-sm font-semibold text-primary">Operational explanation</span>
                   <p className="mt-0.5 font-body-sm text-body-sm text-on-surface">{item.explanation}</p>
                 </div>
+                <AiAssistCard title="AI-ASSISTED EXPLANATION" result={assist} />
                 {item.predictedStep && (
                   <div className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-space-sm">
                     <div className="flex flex-wrap items-center justify-between gap-space-xs"><span className="font-label-sm text-label-sm font-bold text-primary">NEXT STEP AT RISK</span><StatusBadge label={`${item.riskLevel} OPERATIONAL RISK`} variant={item.riskLevel === 'HIGH' ? 'critical' : 'warning'} /></div>
@@ -69,7 +82,8 @@ const CareGapCenterPage: React.FC = () => {
                 <SecondaryButton icon="person_search" onClick={() => navigate(ROUTE_PATHS.frontlinePatient(item.beneficiary.id))}>Open Patient Profile</SecondaryButton>
                 {item.referral && item.result === 'CARE_GAP' && <FollowUpRecoveryPanel referral={item.referral} careGapId={item.careGap?.id} />}
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

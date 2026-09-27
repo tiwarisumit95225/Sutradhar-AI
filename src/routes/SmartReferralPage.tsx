@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Card, OfflineStatus, PatientIdentity, PrimaryButton, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
+import { AiAssistCard, Card, OfflineStatus, PatientIdentity, PrimaryButton, SectionHeader, SecondaryButton, StatusBadge } from '../components/common';
 import FacilityCard from '../components/facility/FacilityCard';
 import FacilityMap from '../components/facility/FacilityMap';
 import SyntheticHandshakeQr from '../components/facility/SyntheticHandshakeQr';
@@ -14,6 +14,7 @@ import { createInitialReferralSnapshot, getCareReceivedEvidence, getClosureEvide
 import { copyHandshakeToken } from '../rules/handshakeClipboard';
 import type { ReferralLifecycleState } from '../types';
 import { ROUTE_PATHS } from './paths';
+import { runAiAssist } from '../ai/aiAssist';
 
 const SmartReferralPage: React.FC = () => {
   const { referralId } = useParams<'referralId'>();
@@ -43,6 +44,22 @@ const SmartReferralPage: React.FC = () => {
   const requirements = useMemo(() => getReferralRequirements(careGapContext), [careGapContext]);
   const options = useMemo(() => rankFacilityOptions(getFacilities(), requirements), [requirements]);
   const recommendedOption = options.find((option) => option.isSuitable) ?? options[0];
+  const facilityAssist = recommendedOption ? runAiAssist({
+    kind: 'FACILITY_CONTEXT',
+    facilityName: recommendedOption.facility.name,
+    isSuitable: recommendedOption.isSuitable,
+    matchedSignals: [
+      ...requirements.services.filter((signal) => !recommendedOption.missingServices.includes(signal)).map((signal) => `Listed service: ${signal}`),
+      ...requirements.diagnostics.filter((signal) => !recommendedOption.missingDiagnostics.includes(signal)).map((signal) => `Available diagnostic: ${signal}`),
+      ...(recommendedOption.operationallyAvailable ? ['Facility is not marked unavailable in the synthetic record'] : []),
+    ],
+    missingSignals: [
+      ...recommendedOption.missingServices.map((signal) => `Missing service: ${signal}`),
+      ...recommendedOption.missingDiagnostics.map((signal) => `Missing diagnostic: ${signal}`),
+      ...(!recommendedOption.operationallyAvailable ? ['Facility is marked unavailable in the synthetic record'] : []),
+    ],
+    sourceIds: [recommendedOption.facility.id, ...(careGapContext?.careGap ? [careGapContext.careGap.id] : [])],
+  }, { isOnline: shell.isOnline }) : undefined;
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>();
 
   useEffect(() => {
@@ -365,6 +382,7 @@ const SmartReferralPage: React.FC = () => {
             <SectionHeader title="Facility options" subtitle="Sorted by requirement coverage, simulated availability, stock confidence, then distance and time" tag="HUMAN REVIEW" />
             <h2 id="facility-options-heading" className="sr-only">Facility options</h2>
             <p className="mb-space-xs rounded-lg bg-surface-container-low p-space-sm font-body-sm text-on-surface-variant">The closest facility is not necessarily the selected option. These are synthetic comparison values; the frontline worker makes the final choice.</p>
+            {facilityAssist && <AiAssistCard title="AI-ASSISTED FACILITY CONTEXT" result={facilityAssist} />}
             <div className="flex min-w-0 flex-col gap-space-sm">
               {options.map((option) => {
                 const recommended = option.facility.id === recommendedOption?.facility.id;
